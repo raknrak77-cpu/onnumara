@@ -1,47 +1,35 @@
-name: On Numara 22'lik Set Bot
+#!/usr/bin/env python3
+"""
+On Numara 22'lik Set Tahmin Botu
+(BAĞIMSIZ - ek kütüphane gerektirmez)
+"""
 
-on:
-  workflow_dispatch:           # Sadece manuel tetikleme
+import sys
+import os
 
-jobs:
-  run-22-bot:
-    runs-on: ubuntu-latest
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from bot.predictor_22 import Predictor22
+
+def main():
+    print("\n" + "=" * 60)
+    print("🎯 ON NUMARA 22'LİK SET TAHMİN BOTU")
+    print("   80 sayı içinden en güçlü 22 sayıyı önerir")
+    print("=" * 60 + "\n")
     
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
-      run: |
-        pip install pandas numpy openpyxl
-        
-    - name: Run 22-number prediction bot
-      run: |
-        python bot/main_22.py
-        
-    - name: Upload results
-      uses: actions/upload-artifact@v4
-      with:
-        name: predictions-22-${{ github.run_number }}
-        path: |
-          outputs/
-          
-    - name: Show summary
-      run: |
-        echo "## 🎯 22'lik Set Tahmin Sonuçları" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Çalıştırma No: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
-        echo "Tarih: $(date)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### En Güçlü 22 Sayı" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # outputs/report_22.txt dosyasından ilk 22 sayıyı al
-        if [ -f outputs/report_22.txt ]; then
-          head -30 outputs/report_22.txt >> $GITHUB_STEP_SUMMARY
-        fi
+    bot = Predictor22()
+    bot.load_data()
+    
+    report = bot.generate_report()
+    print(report)
+    
+    ensemble = bot.ensemble_22_model()
+    bot.save_results(ensemble, "predictions_22.json")
+    
+    os.makedirs('outputs', exist_ok=True)
+    with open('outputs/report_22.txt', 'w', encoding='utf-8') as f:
+        f.write(report)
+    print("\n💾 Kaydedildi: outputs/report_22.txt")
+
+if __name__ == "__main__":
+    main()
