@@ -1,0 +1,42 @@
+name: On Numara Manual Bot
+
+on:
+  workflow_dispatch:           # Sadece manuel tetikleme
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install pandas numpy openpyxl scikit-learn
+        pip install matplotlib seaborn xgboost  # opsiyonel, gerekmezse sil
+        
+    - name: Run prediction bot
+      run: |
+        python bot/main.py --mode advanced
+        
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: prediction-results-${{ github.run_number }}
+        path: |
+          outputs/
+          
+    - name: Show summary
+      run: |
+        echo "## 🎯 Tahmin Sonuçları" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Çalıştırma No: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "Tarih: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Sonuçlar için 'Artifacts' bölümünden json dosyalarını indirin." >> $GITHUB_STEP_SUMMARY
