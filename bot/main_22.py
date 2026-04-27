@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 On Numara 22'lik Set Tahmin Botu
+(BAĞIMSIZ - ek kütüphane gerektirmez)
 """
 
 import sys
@@ -19,15 +20,12 @@ def main():
     bot = Predictor22()
     bot.load_data()
     
-    # Raporu oluştur ve yazdır
     report = bot.generate_report()
     print(report)
     
-    # Sonuçları kaydet
     ensemble = bot.ensemble_22_model()
     bot.save_results(ensemble, "predictions_22.json")
     
-    # Ayrıca raporu da kaydet
     os.makedirs('outputs', exist_ok=True)
     with open('outputs/report_22.txt', 'w', encoding='utf-8') as f:
         f.write(report)
