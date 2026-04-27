@@ -1,0 +1,47 @@
+name: On Numara 22'lik Set Bot
+
+on:
+  workflow_dispatch:           # Sadece manuel tetikleme
+
+jobs:
+  run-22-bot:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install pandas numpy openpyxl
+        
+    - name: Run 22-number prediction bot
+      run: |
+        python bot/main_22.py
+        
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: predictions-22-${{ github.run_number }}
+        path: |
+          outputs/
+          
+    - name: Show summary
+      run: |
+        echo "## 🎯 22'lik Set Tahmin Sonuçları" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Çalıştırma No: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "Tarih: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### En Güçlü 22 Sayı" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # outputs/report_22.txt dosyasından ilk 22 sayıyı al
+        if [ -f outputs/report_22.txt ]; then
+          head -30 outputs/report_22.txt >> $GITHUB_STEP_SUMMARY
+        fi
