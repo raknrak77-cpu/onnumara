@@ -1,139 +1,100 @@
 """
-On Numara veri yükleyici modülü
-Excel dosyasını okur, temizler ve analize hazır hale getirir
+On Numara Veri Yükleyici - Yeni Excel yapısı için
+Excel sütunları: no, tarih, no_1 ... no_22
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from typing import Optional, Tuple, List
 
 class OnNumaraDataLoader:
-    """On Numara çekiliş verilerini yüklemek ve temizlemek için sınıf"""
+    """On Numara çekiliş verilerini yüklemek için sınıf"""
     
-    def __init__(self, excel_path="onnumara_2020.xlsx", sheet_name="Sayfa7"):
-        """
-        Args:
-            excel_path (str): Excel dosyasının yolu
-            sheet_name (str): Sayfa adı (Sayfa7 veya Sayfa8)
-        """
+    def __init__(self, excel_path: str = "onnumara_2020.xlsx", sheet_name: str = "s1"):
         self.excel_path = Path(excel_path)
         self.sheet_name = sheet_name
         self.df = None
-        self.number_columns = [f'no-{i}' for i in range(1, 23)]
+        self.number_columns = [f'no_{i}' for i in range(1, 23)]
         
-    def load_data(self):
+    def load_data(self) -> pd.DataFrame:
         """Excel dosyasını yükle"""
         if not self.excel_path.exists():
             raise FileNotFoundError(f"Dosya bulunamadı: {self.excel_path}")
         
-        # Sayfa7'de ilk 2 satır boş olabilir, onları atla
-        if self.sheet_name == "Sayfa7":
-            self.df = pd.read_excel(self.excel_path, sheet_name=self.sheet_name, header=3)
-        else:
-            self.df = pd.read_excel(self.excel_path, sheet_name=self.sheet_name)
-        
-        print(f"✅ Veri yüklendi: {len(self.df)} satır, {len(self.df.columns)} sütun")
+        self.df = pd.read_excel(self.excel_path, sheet_name=self.sheet_name)
+        print(f"✅ Veri yüklendi: {len(self.df)} çekiliş")
         return self.df
     
-    def clean_data(self):
-        """Sütun isimlerini temizle ve veri tiplerini düzelt"""
-        # İlk sütunu (A sütunu) index yap
-        if self.df.columns[0] == self.df.columns[0]:  # Unnamed gibi bir şey olabilir
-            pass
-            
-        # Sütun isimlerini küçült ve boşlukları temizle
-        self.df.columns = self.df.columns.str.strip().str.lower()
+    def clean_data(self) -> pd.DataFrame:
+        """Veri temizleme ve tipleri düzeltme"""
+        if self.df is None:
+            self.load_data()
         
-        # İlk sütun genelde boş veya gereksiz, onu silelim
-        first_col = self.df.columns[0]
-        if 'unnamed' in first_col or first_col == '' or first_col == 'nan':
-            self.df = self.df.drop(columns=[first_col])
-        
-        # Tarih sütununu bul (tarih, date veya çekiliş içinde)
-        date_col = None
-        for col in self.df.columns:
-            if 'tarih' in col or 'date' in col or 'çekiliş' in col:
-                date_col = col
-                break
-        
-        if date_col:
-            # Tarihi parçala (örn: "1.Çekiliş[1] 03/08/2020")
-            self.df['tarih_raw'] = self.df[date_col].astype(str)
-            # Boşluktan sonraki kısmı al (tarih)
-            self.df['tarih_str'] = self.df['tarih_raw'].str.split().str[-1]
-            self.df['tarih'] = pd.to_datetime(self.df['tarih_str'], format='%d/%m/%Y', errors='coerce')
-            self.df = self.df.drop(columns=[date_col, 'tarih_raw', 'tarih_str'])
-        
-        # Çekiliş numarasını ayıkla (köşeli parantez içindeki sayı)
-        if 'no' not in self.df.columns:
-            # İlk sütun artık tarihi içermiyor, onu no yapalım
-            if len(self.df.columns) > 0:
-                self.df['no'] = range(1, len(self.df) + 1)
+        # Tarih sütununu datetime'a çevir
+        if 'tarih' in self.df.columns:
+            self.df['tarih'] = pd.to_datetime(self.df['tarih'], format='%d.%m.%Y', errors='coerce')
         
         # Sayı sütunlarını integer'a çevir
         for col in self.number_columns:
             if col in self.df.columns:
-                self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
+                self.df[col] = pd.to_numeric(self.df[col], errors='coerce').astype('Int64')
         
-        # Geçersiz satırları temizle
-        initial_count = len(self.df)
-        if 'tarih' in self.df.columns:
-            self.df = self.df.dropna(subset=['tarih'])
-        self.df = self.df.dropna(subset=self.number_columns, how='any')
+        # NaN'ları temizle
+        initial = len(self.df)
+        self.df = self.df.dropna(subset=['tarih'] + self.number_columns, how='any')
         
-        print(f"🧹 Veri temizlendi: {initial_count} -> {len(self.df)} satır")
+        # no sütununu integer yap
+        if 'no' in self.df.columns:
+            self.df['no'] = pd.to_numeric(self.df['no'], errors='coerce').astype('Int64')
+        
+        print(f"🧹 Temizlendi: {initial} -> {len(self.df)} satır")
         return self.df
     
-    def get_all_numbers(self):
-        """Tüm çekilişlerdeki sayıları tek bir liste olarak döndür"""
+    def get_all_numbers(self) -> List[int]:
+        """Tüm çekilişlerdeki sayıları döndür"""
         if self.df is None:
             self.load_data()
             self.clean_data()
         return self.df[self.number_columns].values.flatten().tolist()
     
-    def get_cekilis_by_index(self, index):
+    def get_cekilis(self, index: int) -> List[int]:
         """Belirli bir çekilişin sayılarını döndür"""
-        if self.df is None:
-            self.load_data()
-            self.clean_data()
         return self.df.iloc[index][self.number_columns].values.tolist()
     
-    def get_number_frequencies(self):
-        """Her sayının (1-80) çıkma sıklığını hesapla"""
-        all_numbers = self.get_all_numbers()
-        frequencies = {}
-        for num in range(1, 81):
-            frequencies[num] = all_numbers.count(num)
-        return frequencies
+    def get_frequencies(self) -> dict:
+        """1-80 arası sayıların frekansı"""
+        all_nums = self.get_all_numbers()
+        return {num: all_nums.count(num) for num in range(1, 81)}
     
-    def get_summary_stats(self):
-        """Veri seti hakkında özet istatistik"""
+    def split_data(self, train_ratio: float = 0.85) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Eğitim ve test verisine ayır"""
         if self.df is None:
             self.load_data()
             self.clean_data()
         
-        stats = {
+        split_idx = int(len(self.df) * train_ratio)
+        train = self.df.iloc[:split_idx]
+        test = self.df.iloc[split_idx:]
+        return train, test
+    
+    def get_summary(self) -> dict:
+        """Veri seti özeti"""
+        if self.df is None:
+            self.load_data()
+            self.clean_data()
+        
+        return {
             'toplam_cekilis': len(self.df),
-            'ilk_tarih': self.df['tarih'].min() if 'tarih' in self.df.columns else None,
-            'son_tarih': self.df['tarih'].max() if 'tarih' in self.df.columns else None,
-            'toplam_sayi_gozlemi': len(self.df) * 22,
+            'ilk_tarih': self.df['tarih'].min(),
+            'son_tarih': self.df['tarih'].max(),
+            'toplam_sayi': len(self.df) * 22,
             'benzersiz_sayilar': sorted(self.df[self.number_columns].values.flatten().unique())
         }
-        return stats
 
 
 if __name__ == "__main__":
-    loader = OnNumaraDataLoader(sheet_name="Sayfa7")
-    df = loader.load_data()
-    df = loader.clean_data()
-    
-    print("\n📊 Veri seti özeti:")
-    stats = loader.get_summary_stats()
-    for key, value in stats.items():
-        print(f"   {key}: {value}")
-    
-    print(f"\n📈 En sık çıkan 10 sayı:")
-    freqs = loader.get_number_frequencies()
-    top_10 = sorted(freqs.items(), key=lambda x: x[1], reverse=True)[:10]
-    for num, count in top_10:
-        print(f"   Sayı {num}: {count} kez")
+    loader = OnNumaraDataLoader()
+    loader.load_data()
+    loader.clean_data()
+    print(loader.get_summary())
