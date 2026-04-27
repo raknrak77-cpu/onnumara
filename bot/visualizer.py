@@ -52,12 +52,12 @@ class Visualizer:
     
     def plot_number_trends(self):
         """Zaman içinde sayı trendleri"""
-        fig, axes = plt.subplots(4, 4, figsize=(16, 12))
-        axes = axes.flatten()
-        
         # En sık çıkan 16 sayıyı seç
         all_nums = self.df[self.number_columns].values.flatten()
         most_common = [num for num, _ in Counter(all_nums).most_common(16)]
+        
+        fig, axes = plt.subplots(4, 4, figsize=(16, 12))
+        axes = axes.flatten()
         
         for idx, num in enumerate(most_common):
             ax = axes[idx]
@@ -67,8 +67,8 @@ class Visualizer:
                     appearances.append(i)
             
             # Hareketli ortalama
-            window = 20
-            if len(appearances) > window:
+            if len(appearances) > 20:
+                window = 20
                 smooth = np.convolve([1]*window, appearances, mode='valid') / window
                 ax.plot(range(window-1, len(appearances)), smooth, 'r-', alpha=0.7)
             
@@ -119,48 +119,50 @@ class Visualizer:
     
     def generate_weekly_report(self, backtest_results: dict, future_predictions: list):
         """Haftalık rapor oluştur"""
-        report = f"""# 📊 On Numara Haftalık Analiz Raporu
-
-**Tarih:** {datetime.now().strftime('%d.%m.%Y %H:%M')}
-**Toplam Çekiliş:** {len(self.df)}
-**İlk Çekiliş:** {self.df['tarih'].min().strftime('%d.%m.%Y')}
-**Son Çekiliş:** {self.df['tarih'].max().strftime('%d.%m.%Y')}
-
----
-
-## 📈 Model Performansları (Backtest)
-
-| Model | Ortalama Doğruluk (/10) |
-|-------|-------------------------|
-"""
+        report_lines = []
+        report_lines.append("# 📊 On Numara Haftalık Analiz Raporu\n")
+        report_lines.append(f"\n**Tarih:** {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        report_lines.append(f"\n**Toplam Çekiliş:** {len(self.df)}")
+        report_lines.append(f"\n**İlk Çekiliş:** {self.df['tarih'].min().strftime('%d.%m.%Y')}")
+        report_lines.append(f"\n**Son Çekiliş:** {self.df['tarih'].max().strftime('%d.%m.%Y')}")
+        report_lines.append("\n\n---\n")
+        report_lines.append("\n## 📈 Model Performansları (Backtest)\n")
+        report_lines.append("\n| Model | Ortalama Doğruluk (/10) |")
+        report_lines.append("\n|-------|-------------------------|")
         
         for model in sorted(backtest_results.keys(), key=lambda x: backtest_results[x]['avg_score'], reverse=True):
             avg = backtest_results[model]['avg_score']
-            report += f"| {model} | {avg:.2f} |\n"
+            report_lines.append(f"\n| {model} | {avg:.2f} |")
         
-        report += f"""
-**En Başarılı Model:** {max(backtest_results.keys(), key=lambda x: backtest_results[x]['avg_score'])}
-**Ortalama Performans:** {sum(backtest_results[m]['avg_score'] for m in backtest_results) / len(backtest_results):.2f}/10
-
----
-
-## 🔮 Gelecek Tahminleri
-
-"""
+        best_model = max(backtest_results.keys(), key=lambda x: backtest_results[x]['avg_score'])
+        avg_all = sum(backtest_results[m]['avg_score'] for m in backtest_results) / len(backtest_results)
+        
+        report_lines.append(f"\n\n**En Başarılı Model:** {best_model}")
+        report_lines.append(f"\n**Ortalama Performans:** {avg_all:.2f}/10")
+        
+        report_lines.append("\n\n---\n")
+        report_lines.append("\n## 🔮 Gelecek Tahminleri\n")
+        
         for pred in future_predictions:
-            report += f"""
-### {pred['tahmin_no']}. Tahmin - {pred['tarih']}
-
-**Ensemble (Önerilen 10 Sayı):**
-{', '.join(map(str, pred['ensemble_top10'][:10]))}
-
-**Frekans Bazlı:** {', '.join(map(str, pred['frequency_top10'][:5]))}...
-**Markov Bazlı:** {', '.join(map(str, pred['markov_top10'][:5]))}...
-**Monte Carlo:** {', '.join(map(str, pred['monte_carlo_top10'][:5]))}...
-
-"""
-
-        report += """
----
-
-> ⚠️ **Uyarı:** Bu tahminler tamamen
+            report_lines.append(f"\n### {pred['tahmin_no']}. Tahmin - {pred['tarih']}\n")
+            report_lines.append(f"\n**Ensemble (Önerilen 10 Sayı):**")
+            report_lines.append(f"\n{', '.join(map(str, pred['ensemble_top10'][:10]))}")
+            report_lines.append(f"\n\n**Frekans Bazlı:** {', '.join(map(str, pred['frequency_top10'][:5]))}...")
+            report_lines.append(f"\n**Markov Bazlı:** {', '.join(map(str, pred['markov_top10'][:5]))}...")
+            report_lines.append(f"\n**Monte Carlo:** {', '.join(map(str, pred['monte_carlo_top10'][:5]))}...\n")
+        
+        report_lines.append("\n\n---\n")
+        report_lines.append("\n> ⚠️ **Uyarı:** Bu tahminler tamamen istatistiksel analizlere dayanmaktadır.")
+        report_lines.append(" Şans oyunları şansa dayalıdır, kesin sonuç garantisi yoktur.\n")
+        
+        # Raporu yaz
+        with open('reports/weekly_report.md', 'w', encoding='utf-8') as f:
+            f.writelines(report_lines)
+        print("📝 Haftalık rapor kaydedildi")
+    
+    def run_all(self, backtest_results: dict, future_predictions: list):
+        """Tüm görselleştirmeleri çalıştır"""
+        self.plot_frequency_distribution()
+        self.plot_number_trends()
+        self.plot_heatmap()
+        self.generate_weekly_report(backtest_results, future_predictions)
