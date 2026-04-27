@@ -1,34 +1,40 @@
-name: On Numara Prediction Bot
+name: On Numara Daily Bot
 
 on:
   schedule:
-    - cron: '0 6 * * 1,5'
-  workflow_dispatch:
+    - cron: '0 6 * * 1,5'      # Pazartesi ve Cuma 06:00 UTC (09:00 TSİ)
+  workflow_dispatch:            # Manuel çalıştırma
 
 jobs:
-  predict:
+  run-bot:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
+    - uses: actions/checkout@v4
+    
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        
+    
     - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-        
-    - name: Run predictions
-      run: |
-        python bot/main.py --mode backtest
-        python bot/main.py --mode forward
-        
+      run: pip install -r requirements.txt
+    
+    - name: Run all analyses
+      run: python bot/main.py --mode all
+    
     - name: Upload results
       uses: actions/upload-artifact@v4
       with:
-        name: prediction-results
-        path: outputs/
+        name: onumara-results-${{ github.run_number }}
+        path: |
+          outputs/
+          reports/
+    
+    - name: Create Release
+      if: github.event_name == 'schedule'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: predictions-${{ github.run_number }}
+        name: "Tahmin Sonuçları - $(date '+%Y-%m-%d')"
+        files: outputs/forward_predictions.json
