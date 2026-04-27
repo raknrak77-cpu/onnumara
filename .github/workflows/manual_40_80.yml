@@ -1,0 +1,23 @@
+name: On Numara 40-80 Strateji Bot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install pandas numpy openpyxl
+      - name: Run 40-80 bot
+        run: python bot/predictor_40_80.py
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictions-40-80
+          path: outputs/
