@@ -1,6 +1,7 @@
 """
 22'lik Set Tahmin Botu
 80 sayı içinden en güçlü 22 sayıyı önerir
+(BAĞIMSIZ - ek kütüphane gerektirmez)
 """
 
 import pandas as pd
@@ -9,7 +10,6 @@ from collections import Counter
 from typing import List, Dict
 import json
 import os
-from datetime import timedelta
 
 class Predictor22:
     def __init__(self, excel_path: str = "onnumara_2020.xlsx", sheet_name: str = "s1"):
@@ -57,7 +57,6 @@ class Predictor22:
         counter = Counter(recent_nums)
         top_22 = [num for num, _ in counter.most_common(n)]
         
-        # Eğer 22'den az varsa, frekans modelinden tamamla
         if len(top_22) < n:
             freq_pred = self.frequency_22_model(n)
             for num in freq_pred:
@@ -93,7 +92,7 @@ class Predictor22:
         due_sorted = sorted(due_counts.items(), key=lambda x: x[1], reverse=True)
         return [num for num, _ in due_sorted[:n]]
     
-    # ==================== MODEL 4: AĞIRLIKLI FREKANS (Zamana göre) ====================
+    # ==================== MODEL 4: AĞIRLIKLI FREKANS ====================
     def weighted_frequency_22(self, n: int = 22, decay: float = 0.95) -> List[int]:
         """Yeni çekilişlere daha fazla ağırlık veren frekans"""
         weighted_counts = {}
@@ -106,7 +105,7 @@ class Predictor22:
         sorted_nums = sorted(weighted_counts.items(), key=lambda x: x[1], reverse=True)
         return [num for num, _ in sorted_nums[:n]]
     
-    # ==================== MODEL 5: TREND ANALİZİ (Yükselen sayılar) ====================
+    # ==================== MODEL 5: TREND ANALİZİ ====================
     def trend_22_model(self, n: int = 22, window: int = 20) -> List[int]:
         """Son window çekilişte trendi artan sayılar"""
         scores = {}
@@ -131,7 +130,6 @@ class Predictor22:
             else:
                 trend_score = recent_count if recent_count > 0 else 0
             
-            # Son görülme zamanı bonusu
             last_seen = 0
             for idx, row in self.df.iterrows():
                 if num in self.get_valid_numbers(row):
@@ -145,14 +143,13 @@ class Predictor22:
         sorted_nums = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [num for num, _ in sorted_nums[:n]]
     
-    # ==================== MODEL 6: FİZİKSEL 22 (Top ağırlığı, aşınma) ====================
+    # ==================== MODEL 6: FİZİKSEL (Top ağırlığı, aşınma) ====================
     def physical_22_model(self, n: int = 22) -> List[int]:
         """Fiziksel faktörleri dikkate alan tahmin"""
         
         scores = {}
         
-        # 1. Top yaşlanması - son çeyrekte artan sayılar
-        quarter = len(self.df) // 4
+        quarter = max(1, len(self.df) // 4)
         last_quarter = self.df.iloc[-quarter:]
         first_quarter = self.df.iloc[:quarter]
         
@@ -170,20 +167,17 @@ class Predictor22:
             aging_score = (last_freq - first_freq) * 20
             scores[num] = aging_score
         
-        # 2. Kalibrasyon drift'i - son 20 çekilişte artanlar
         recent_counts = Counter()
-        for _, row in self.df.iloc[-20:].iterrows():
+        recent_window = min(20, len(self.df))
+        for _, row in self.df.iloc[-recent_window:].iterrows():
             recent_counts.update(self.get_valid_numbers(row))
         
         for num in range(1, 81):
-            recent_freq = recent_counts[num] / (20 * 22) if recent_counts[num] > 0 else 0.01
+            recent_freq = recent_counts[num] / (recent_window * 22) if recent_counts[num] > 0 else 0.01
             scores[num] = scores.get(num, 0) + recent_freq * 10
         
-        # 3. Kümelenme - hangi aralıklar yoğun?
         ranges = [(1, 20), (21, 40), (41, 60), (61, 80)]
-        range_counts = {}
-        for r in ranges:
-            range_counts[r] = 0
+        range_counts = {r: 0 for r in ranges}
         
         for _, row in self.df.iloc[-20:].iterrows():
             for num in self.get_valid_numbers(row):
@@ -199,9 +193,9 @@ class Predictor22:
         sorted_nums = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [num for num, _ in sorted_nums[:n]]
     
-    # ==================== ENSEMBLE 22 (Tüm modellerin ortak önerisi) ====================
+    # ==================== ENSEMBLE 22 ====================
     def ensemble_22_model(self, n: int = 22) -> Dict:
-        """Tüm modelleri birleştir, kesişim ve ağırlıklı skor hesapla"""
+        """Tüm modelleri birleştir"""
         
         models = {
             'recent': self.recent_22_model(30),
@@ -212,7 +206,7 @@ class Predictor22:
             'physical': self.physical_22_model(30)
         }
         
-        # Kesişim (tüm modellerde ortak olan sayılar)
+        # Kesişim
         all_sets = [set(models[m]) for m in models]
         intersection = list(set.intersection(*all_sets))
         
@@ -233,7 +227,6 @@ class Predictor22:
                 score = (30 - rank) * weight
                 weighted_scores[num] = weighted_scores.get(num, 0) + score
         
-        # Kesişimdekilere bonus
         for num in intersection:
             weighted_scores[num] = weighted_scores.get(num, 0) + 30
         
@@ -247,53 +240,50 @@ class Predictor22:
             'scores': dict(sorted_scores[:30])
         }
     
-    # ==================== RAPORLAMA ====================
+    # ==================== RAPOR ====================
     def generate_report(self) -> str:
-        """22'lik set raporu oluştur"""
-        
         ensemble = self.ensemble_22_model()
         
-        report = []
-        report.append("=" * 60)
-        report.append("🎯 ON NUMARA 22'LİK SET TAHMİN RAPORU")
-        report.append("=" * 60)
-        report.append(f"\n📅 Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}")
-        report.append(f"📊 Toplam Analiz: {len(self.df)} çekiliş")
+        report_lines = []
+        report_lines.append("=" * 60)
+        report_lines.append("🎯 ON NUMARA 22'LİK SET TAHMİN RAPORU")
+        report_lines.append("=" * 60)
+        report_lines.append(f"\n📅 Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}")
+        report_lines.append(f"📊 Toplam Analiz: {len(self.df)} çekiliş")
         
-        report.append("\n" + "-" * 60)
-        report.append("🏆 EN GÜÇLÜ 22 SAYI (Ensemble Model)")
-        report.append("-" * 60)
+        report_lines.append("\n" + "-" * 60)
+        report_lines.append("🏆 EN GÜÇLÜ 22 SAYI (Ensemble Model)")
+        report_lines.append("-" * 60)
         
         final_22 = ensemble['final_22']
-        # 5'erli gruplar halinde göster
         for i in range(0, len(final_22), 5):
             group = final_22[i:i+5]
-            report.append(f"  {i+1:2d}-{i+5:2d}. {' '.join(f'{n:3d}' for n in group)}")
+            report_lines.append(f"  {i+1:2d}-{i+5:2d}. {' '.join(f'{n:3d}' for n in group)}")
         
-        report.append("\n" + "-" * 60)
-        report.append("🎯 KESİŞİM (Tüm modellerin ortak önerdiği sayılar)")
-        report.append("-" * 60)
+        report_lines.append("\n" + "-" * 60)
+        report_lines.append("🎯 KESİŞİM (Tüm modellerin ortak önerdiği sayılar)")
+        report_lines.append("-" * 60)
         
         intersection = ensemble['intersection']
         if intersection:
-            report.append(f"  {len(intersection)} adet: {intersection}")
+            report_lines.append(f"  {len(intersection)} adet: {intersection}")
         else:
-            report.append("  (Ortak sayı bulunamadı - beklenen)")
+            report_lines.append("  (Ortak sayı bulunamadı)")
         
-        report.append("\n" + "-" * 60)
-        report.append("📊 MODELLERİN İLK 10 TAHMİNİ")
-        report.append("-" * 60)
+        report_lines.append("\n" + "-" * 60)
+        report_lines.append("📊 MODELLERİN İLK 10 TAHMİNİ")
+        report_lines.append("-" * 60)
         
         for model_name, preds in ensemble['model_predictions'].items():
-            report.append(f"\n  {model_name.upper()}:")
-            report.append(f"    {preds[:10]}")
+            report_lines.append(f"\n  {model_name.upper()}:")
+            report_lines.append(f"    {preds[:10]}")
         
-        report.append("\n" + "-" * 60)
-        report.append("⚠️ NOT: Bu 22 sayı, geçmiş verilere dayalı istatistiksel analizdir.")
-        report.append("   Kesin sonuç garantisi yoktur. Eğlence amaçlıdır.")
-        report.append("=" * 60)
+        report_lines.append("\n" + "-" * 60)
+        report_lines.append("⚠️ NOT: Bu 22 sayı, geçmiş verilere dayalı istatistiksel analizdir.")
+        report_lines.append("   Kesin sonuç garantisi yoktur. Eğlence amaçlıdır.")
+        report_lines.append("=" * 60)
         
-        return "\n".join(report)
+        return "\n".join(report_lines)
     
     def save_results(self, results: Dict, filename: str):
         os.makedirs('outputs', exist_ok=True)
