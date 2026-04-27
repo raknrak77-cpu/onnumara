@@ -3,6 +3,7 @@
 ON NUMARA 22'LİK SET TAHMİN BOTU
 Tek dosya - Bağımsız çalışır
 80 sayı içinden en güçlü 22 sayıyı önerir
+GERİYE DÖNÜK TEST ile EN İYİ STRATEJİYİ BULUR
 """
 
 import pandas as pd
@@ -57,14 +58,23 @@ class Models:
         self.df = df
         self.get_numbers = get_numbers_func
     
-    # Model 1: Son 5 çekilişte en sık çıkanlar
-    def recent(self, n=22):
+    # Model 1: Son N çekilişte en sık çıkanlar
+    def recent(self, n=22, window=5):
         recent_nums = []
-        window = min(5, len(self.df))
+        window = min(window, len(self.df))
         for idx in range(len(self.df) - window, len(self.df)):
             recent_nums.extend(self.get_numbers(self.df.iloc[idx]))
         counter = Counter(recent_nums)
-        return [num for num, _ in counter.most_common(n)]
+        result = [num for num, _ in counter.most_common(n)]
+        # Eksik varsa frekanstan tamamla
+        if len(result) < n:
+            freq = self.frequency(n*2)
+            for num in freq:
+                if num not in result:
+                    result.append(num)
+                if len(result) == n:
+                    break
+        return result[:n]
     
     # Model 2: Tüm zamanların en sık çıkanları
     def frequency(self, n=22):
@@ -180,7 +190,138 @@ class Models:
 
 
 # ============================================================
-# ANA TAHMİN SINIFI
+# BACKTEST ve OPTİMİZASYON
+# ============================================================
+
+class Backtest:
+    def __init__(self, df, get_numbers_func):
+        self.df = df
+        self.get_numbers = get_numbers_func
+        self.models = Models(df, get_numbers_func)
+        self.results = {}
+        
+    def test_model(self, model_func, model_name, test_size=50, **kwargs):
+        """Tek bir modeli backtest et"""
+        total = len(self.df)
+        train_size = total - test_size
+        
+        if train_size <= 0:
+            return 0
+        
+        scores = []
+        for i in range(test_size):
+            train_end = train_size + i
+            if train_end >= total:
+                break
+            
+            train_df = self.df.iloc[:train_end]
+            test_row = self.df.iloc[train_end]
+            actual = set(self.get_numbers(test_row))
+            
+            # Geçici model ile tahmin yap
+            temp_models = Models(train_df, self.get_numbers)
+            
+            if model_name == 'recent':
+                window = kwargs.get('window', 5)
+                preds = temp_models.recent(22, window)
+            elif model_name == 'frequency':
+                preds = temp_models.frequency(22)
+            elif model_name == 'due':
+                preds = temp_models.due(22)
+            elif model_name == 'weighted':
+                decay = kwargs.get('decay', 0.95)
+                preds = temp_models.weighted(22, decay)
+            elif model_name == 'trend':
+                window = kwargs.get('window', 20)
+                preds = temp_models.trend(22, window)
+            elif model_name == 'physical':
+                preds = temp_models.physical(22)
+            else:
+                preds = []
+            
+            correct = len(set(preds) & actual)
+            scores.append(correct)
+        
+        avg_score = sum(scores) / len(scores) if scores else 0
+        return avg_score
+    
+    def find_best_window_for_recent(self, test_size=50):
+        """Son N çekiliş için en iyi pencere boyutunu bul"""
+        print("  🔍 Son N çekiliş modeli optimize ediliyor...")
+        best_score = 0
+        best_window = 5
+        windows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20]
+        
+        for window in windows:
+            if window > len(self.df) - test_size:
+                continue
+            score = self.test_model(None, 'recent', test_size, window=window)
+            print(f"     window={window:2d} -> {score:.2f}/22 doğru")
+            if score > best_score:
+                best_score = score
+                best_window = window
+        
+        print(f"  ✅ En iyi pencere: {best_window} (ortalama {best_score:.2f}/22)")
+        return best_window, best_score
+    
+    def find_best_decay_for_weighted(self, test_size=50):
+        """Ağırlıklı frekans için en iyi decay değerini bul"""
+        print("  🔍 Ağırlıklı frekans modeli optimize ediliyor...")
+        best_score = 0
+        best_decay = 0.95
+        decays = [0.7, 0.8, 0.85, 0.9, 0.92, 0.95, 0.97, 0.98, 0.99]
+        
+        for decay in decays:
+            score = self.test_model(None, 'weighted', test_size, decay=decay)
+            print(f"     decay={decay} -> {score:.2f}/22 doğru")
+            if score > best_score:
+                best_score = score
+                best_decay = decay
+        
+        print(f"  ✅ En iyi decay: {best_decay} (ortalama {best_score:.2f}/22)")
+        return best_decay, best_score
+    
+    def run_all_backtests(self, test_size=50):
+        """Tüm modelleri backtest et ve karşılaştır"""
+        print(f"\n📊 BACKTEST BAŞLIYOR (son {test_size} çekiliş üzerinde)")
+        print("-" * 50)
+        
+        # Basit modeller
+        print("\n  📈 TEMEL MODELLER:")
+        models_to_test = ['frequency', 'due', 'physical']
+        for model in models_to_test:
+            score = self.test_model(None, model, test_size)
+            self.results[model] = score
+            print(f"     {model}: {score:.2f}/22 doğru")
+        
+        # Optimizasyon gerektiren modeller
+        best_window, recent_score = self.find_best_window_for_recent(test_size)
+        self.results['recent'] = recent_score
+        self.results['recent_best_window'] = best_window
+        
+        best_decay, weighted_score = self.find_best_decay_for_weighted(test_size)
+        self.results['weighted'] = weighted_score
+        self.results['weighted_best_decay'] = best_decay
+        
+        trend_score = self.test_model(None, 'trend', test_size)
+        self.results['trend'] = trend_score
+        
+        # Sıralama
+        print("\n" + "-" * 50)
+        print("🏆 MODEL BAŞARI SIRALAMASI (22'de kaç doğru):")
+        print("-" * 50)
+        
+        sorted_results = sorted(self.results.items(), key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0, reverse=True)
+        for i, (model, score) in enumerate(sorted_results):
+            if isinstance(score, (int, float)):
+                stars = "⭐" * int(score // 2) + "☆" * (11 - int(score // 2))
+                print(f"  {i+1}. {model:12}: {score:.2f}/22 {stars}")
+        
+        return self.results
+
+
+# ============================================================
+# ANA TAHMİN SINIFI (Backtest ile optimize edilmiş)
 # ============================================================
 
 class Predictor22:
@@ -189,28 +330,68 @@ class Predictor22:
         self.sheet_name = sheet_name
         self.df = None
         self.models = None
+        self.backtest_results = None
+        self.optimal_settings = {}
         
     def load_data(self):
         loader = DataLoader(self.excel_path, self.sheet_name)
         self.df = loader.load()
         self.get_numbers = loader.get_numbers
-        self.models = Models(self.df, self.get_numbers)
         print(f"✅ Veri yüklendi: {len(self.df)} çekiliş")
         if len(self.df) > 0:
             print(f"📅 Aralık: {self.df['tarih'].min().strftime('%d.%m.%Y')} - {self.df['tarih'].max().strftime('%d.%m.%Y')}")
         return self.df
     
-    def get_ensemble_22(self):
-        """Tüm modelleri birleştir, en güçlü 22 sayıyı bul"""
+    def run_backtest(self, test_size=50):
+        """Backtest çalıştır ve en iyi stratejiyi bul"""
+        bt = Backtest(self.df, self.get_numbers)
+        self.backtest_results = bt.run_all_backtests(test_size)
+        
+        # Optimal ayarları kaydet
+        self.optimal_settings = {
+            'best_model': max([(k, v) for k, v in self.backtest_results.items() if isinstance(v, (int, float))], key=lambda x: x[1])[0],
+            'recent_window': self.backtest_results.get('recent_best_window', 5),
+            'weighted_decay': self.backtest_results.get('weighted_best_decay', 0.95)
+        }
+        
+        print(f"\n🎯 EN İYİ MODEL: {self.optimal_settings['best_model']}")
+        print(f"   Son {self.optimal_settings['recent_window']} çekiliş kullanılacak")
+        
+        return self.backtest_results
+    
+    def get_optimized_ensemble(self):
+        """Optimize edilmiş ayarlarla ensemble oluştur"""
+        
+        # Optimal ayarları kullan
+        recent_window = self.optimal_settings.get('recent_window', 5)
+        weighted_decay = self.optimal_settings.get('weighted_decay', 0.95)
+        
+        # Geçici modeller sınıfı
+        temp_models = Models(self.df, self.get_numbers)
         
         models_pred = {
-            'recent': self.models.recent(30),
-            'frequency': self.models.frequency(30),
-            'due': self.models.due(30),
-            'weighted': self.models.weighted(30),
-            'trend': self.models.trend(30),
-            'physical': self.models.physical(30)
+            'recent': temp_models.recent(30, recent_window),
+            'frequency': temp_models.frequency(30),
+            'due': temp_models.due(30),
+            'weighted': temp_models.weighted(30, weighted_decay),
+            'trend': temp_models.trend(30),
+            'physical': temp_models.physical(30)
         }
+        
+        # Backtest sonuçlarına göre ağırlıklar
+        weights = {
+            'recent': self.backtest_results.get('recent', 1.0),
+            'frequency': self.backtest_results.get('frequency', 1.0),
+            'due': self.backtest_results.get('due', 1.0),
+            'weighted': self.backtest_results.get('weighted', 1.0),
+            'trend': self.backtest_results.get('trend', 1.0),
+            'physical': self.backtest_results.get('physical', 1.0)
+        }
+        
+        # Ağırlıkları normalize et
+        total_weight = sum(weights.values())
+        if total_weight > 0:
+            weights = {k: v / total_weight * 10 for k, v in weights.items()}
         
         # Kesişim
         all_sets = [set(models_pred[m]) for m in models_pred]
@@ -218,8 +399,6 @@ class Predictor22:
         
         # Ağırlıklı skor
         weighted_scores = {}
-        weights = {'recent': 1.5, 'frequency': 1.0, 'due': 0.8, 'weighted': 1.2, 'trend': 1.3, 'physical': 1.4}
-        
         for model_name, preds in models_pred.items():
             weight = weights.get(model_name, 1.0)
             for rank, num in enumerate(preds):
@@ -236,20 +415,27 @@ class Predictor22:
             'final_22': final_22,
             'intersection': intersection,
             'models': models_pred,
-            'scores': dict(sorted_scores[:30])
+            'scores': dict(sorted_scores[:30]),
+            'weights': weights,
+            'best_model': self.optimal_settings['best_model']
         }
     
     def print_report(self):
-        result = self.get_ensemble_22()
+        # Önce backtest yap
+        if self.backtest_results is None:
+            self.run_backtest()
+        
+        result = self.get_optimized_ensemble()
         
         print("\n" + "=" * 60)
         print("🎯 ON NUMARA 22'LİK SET TAHMİN RAPORU")
         print("=" * 60)
         print(f"\n📅 Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}")
         print(f"📊 Toplam Analiz: {len(self.df)} çekiliş")
+        print(f"🎯 En İyi Model: {result['best_model']}")
         
         print("\n" + "-" * 60)
-        print("🏆 EN GÜÇLÜ 22 SAYI (ÖNERİLEN)")
+        print("🏆 EN GÜÇLÜ 22 SAYI (Optimize Ensemble)")
         print("-" * 60)
         
         final = result['final_22']
@@ -264,15 +450,14 @@ class Predictor22:
         if result['intersection']:
             print(f"  {len(result['intersection'])} adet: {result['intersection']}")
         else:
-            print("  (Ortak sayı bulunamadı)")
+            print("  (Ortak sayı bulunamadı - modeller çeşitli)")
         
         print("\n" + "-" * 60)
-        print("📊 MODELLERİN İLK 10 TAHMİNİ")
+        print("📊 MODELLERİN AĞIRLIKLARI (Backtest başarısına göre)")
         print("-" * 60)
         
-        for model_name, preds in result['models'].items():
-            print(f"\n  {model_name.upper()}:")
-            print(f"    {preds[:10]}")
+        for model, weight in sorted(result['weights'].items(), key=lambda x: x[1], reverse=True):
+            print(f"  {model:12}: {weight:.2f}")
         
         print("\n" + "-" * 60)
         print("⚠️ NOT: Bu tahminler istatistiksel analizdir.")
@@ -286,7 +471,13 @@ class Predictor22:
         
         # JSON kaydet
         with open(f'outputs/{filename}', 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
+            json.dump({
+                'final_22': result['final_22'],
+                'best_model': result['best_model'],
+                'weights': result['weights'],
+                'backtest_results': self.backtest_results,
+                'optimal_settings': self.optimal_settings
+            }, f, ensure_ascii=False, indent=2)
         
         # TXT rapor kaydet
         with open('outputs/report_22.txt', 'w', encoding='utf-8') as f:
@@ -294,11 +485,14 @@ class Predictor22:
             f.write("🎯 ON NUMARA 22'LİK SET TAHMİN RAPORU\n")
             f.write("=" * 60 + "\n\n")
             f.write(f"Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}\n")
-            f.write(f"Toplam Analiz: {len(self.df)} çekiliş\n\n")
+            f.write(f"Toplam Analiz: {len(self.df)} çekiliş\n")
+            f.write(f"En İyi Model: {result['best_model']}\n\n")
             f.write("EN GÜÇLÜ 22 SAYI:\n")
             f.write(str(result['final_22']) + "\n\n")
-            f.write("KESİŞİM:\n")
-            f.write(str(result['intersection']) + "\n")
+            f.write("BACKTEST SONUÇLARI:\n")
+            for model, score in self.backtest_results.items():
+                if isinstance(score, (int, float)):
+                    f.write(f"  {model}: {score:.2f}/22\n")
         
         print(f"💾 Kaydedildi: outputs/{filename}")
         print(f"💾 Kaydedildi: outputs/report_22.txt")
@@ -312,10 +506,12 @@ def main():
     print("\n" + "=" * 60)
     print("🚀 ON NUMARA 22'LİK SET TAHMİN BOTU")
     print("   80 sayı içinden en güçlü 22 sayı")
+    print("   Backtest ile EN İYİ STRATEJİYİ BULUR")
     print("=" * 60)
     
     bot = Predictor22()
     bot.load_data()
+    bot.run_backtest(test_size=50)
     result = bot.print_report()
     bot.save_results(result)
     
