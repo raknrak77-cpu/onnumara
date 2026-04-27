@@ -1,0 +1,40 @@
+name: On Numara Advanced Analysis (Weekly)
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'        # Her Pazar 00:00 UTC
+  workflow_dispatch:
+
+jobs:
+  advanced-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+    
+    - name: Run advanced models
+      run: |
+        python bot/main.py --mode advanced
+        python bot/main.py --mode visualize
+    
+    - name: Upload reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: advanced-analysis-${{ github.run_number }}
+        path: |
+          outputs/plots/
+          reports/
+    
+    - name: Generate summary
+      run: |
+        echo "## 📊 Haftalık Analiz Raporu" >> $GITHUB_STEP_SUMMARY
+        echo "$(date)" >> $GITHUB_STEP_SUMMARY
+        cat reports/weekly_report.md >> $GITHUB_STEP_SUMMARY
