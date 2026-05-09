@@ -1,0 +1,23 @@
+name: Süper Loto 6/12 Bot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install pandas numpy openpyxl
+      - name: Run Super Loto 6/12 Bot
+        run: python bot/superloto_predictor12.py
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: superloto-12-predictions
+          path: outputs/
