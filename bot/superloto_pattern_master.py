@@ -653,31 +653,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-✅ .github/workflows/manual_pattern_master.yml
-
-```yaml
-name: Süper Loto Pattern Master
-
-on:
-  workflow_dispatch:
-
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: pip install pandas numpy openpyxl
-      - name: Run Pattern Master
-        run: python bot/superloto_pattern_master.py
-      - name: Upload results
-        uses: actions/upload-artifact@v4
-        with:
-          name: pattern-master-results
-          path: outputs/
