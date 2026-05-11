@@ -537,4 +537,345 @@ class BacktestEngine:
             ('p_main_son_15', 'Son 15 çekiliş'),
             ('p_main_son_20', 'Son 20 çekiliş'),
             ('p_main_son_30', 'Son 30 çekiliş'),
-           
+            ('p_main_fibonacci', 'Fibonacci sayıları'),
+            ('p_main_fibonacci_neighbor', 'Fibonacci + komşu'),
+            ('p_main_fibonacci_range', 'Fibonacci aralığı'),
+            ('p_main_only_odd', 'Sadece tek sayılar'),
+            ('p_main_only_even', 'Sadece çift sayılar'),
+            ('p_main_3odd_2even', '3 tek + 2 çift'),
+            ('p_main_4odd_1even', '4 tek + 1 çift'),
+            ('p_main_small', 'Küçük sayılar (1-17)'),
+            ('p_main_large', 'Büyük sayılar (18-34)'),
+            ('p_main_3small_2large', '3 küçük + 2 büyük'),
+            ('p_main_hot', 'Hot numbers (en çok çıkan)'),
+            ('p_main_due', 'Due numbers (en uzun süredir çıkmayan)'),
+            ('p_main_trend_up', 'Trend artan sayılar'),
+            ('p_main_trend_down', 'Trend azalan sayılar'),
+            ('p_main_neighbor', 'Son çekilişin komşuları'),
+            ('p_main_last_draw', 'Son çekilişin aynısı'),
+            ('p_main_prime', 'Asal sayılar'),
+            ('p_main_mod5', "Mod 5 (5'in katları)"),
+            ('p_main_mod3', "Mod 3 (3'ün katları)"),
+            ('p_main_weekday', 'Haftanın aynı günü'),
+            ('p_main_month_day', 'Ayın aynı günü'),
+            ('p_main_even_draws', 'Çift numaralı çekilişler'),
+            ('p_main_odd_draws', 'Tek numaralı çekilişler'),
+        ]
+        
+        print("\n🎯 ANA KISIM PATTERN SONUÇLARI (5 sayı / 10 tahmin)")
+        print("-" * 55)
+        print(f"{'Pattern':35} {'Başarı':>10}")
+        print("-" * 55)
+        
+        for pattern_func, pattern_name in main_pattern_list:
+            score = self.test_main_pattern(pattern_func, pattern_name, test_size)
+            self.main_results[pattern_name] = score
+            rastgele = 10 * (5/34)  # 1.47
+            improvement = ((score - rastgele) / rastgele * 100) if rastgele > 0 else 0
+            star = "🔥" if improvement > 20 else "⭐" if improvement > 10 else " " if improvement > 0 else "❌"
+            print(f"  {pattern_name:35}: {score:5.2f}/10 ({improvement:+.0f}%) {star}")
+        
+        print("\n" + "-" * 55)
+        
+        # ARTI KISIM PATTERNLERİ
+        plus_pattern_list = [
+            ('p_plus_son_1', 'Son 1 çekiliş'),
+            ('p_plus_son_3', 'Son 3 çekiliş'),
+            ('p_plus_son_5', 'Son 5 çekiliş'),
+            ('p_plus_son_7', 'Son 7 çekiliş'),
+            ('p_plus_son_10', 'Son 10 çekiliş'),
+            ('p_plus_son_15', 'Son 15 çekiliş'),
+            ('p_plus_son_20', 'Son 20 çekiliş'),
+            ('p_plus_hot', 'Hot numbers'),
+            ('p_plus_due', 'Due numbers'),
+            ('p_plus_odd', 'Tek sayılar'),
+            ('p_plus_even', 'Çift sayılar'),
+            ('p_plus_small', 'Küçük sayılar (1-7)'),
+            ('p_plus_large', 'Büyük sayılar (8-14)'),
+            ('p_plus_prime', 'Asal sayılar'),
+            ('p_plus_fibonacci', 'Fibonacci sayıları'),
+            ('p_plus_neighbor', 'Son çekilişin komşuları'),
+            ('p_plus_last_draw', 'Son çekilişin aynısı'),
+            ('p_plus_weekday', 'Haftanın aynı günü'),
+        ]
+        
+        print("\n🎯 ARTI KISIM PATTERN SONUÇLARI (1 sayı / 3 tahmin)")
+        print("-" * 55)
+        print(f"{'Pattern':35} {'Başarı':>10}")
+        print("-" * 55)
+        
+        for pattern_func, pattern_name in plus_pattern_list:
+            score = self.test_plus_pattern(pattern_func, pattern_name, test_size)
+            self.plus_results[pattern_name] = score
+            rastgele = 3 * (1/14)  # 0.214
+            improvement = ((score - rastgele) / rastgele * 100) if rastgele > 0 else 0
+            star = "🔥" if improvement > 20 else "⭐" if improvement > 10 else " " if improvement > 0 else "❌"
+            print(f"  {pattern_name:35}: {score:5.2f}/3 ({improvement:+.0f}%) {star}")
+        
+        print("\n" + "=" * 60)
+        
+        # EN İYİLER
+        best_main = max(self.main_results.items(), key=lambda x: x[1])
+        best_plus = max(self.plus_results.items(), key=lambda x: x[1])
+        
+        rastgele_main = 10 * (5/34)
+        rastgele_plus = 3 * (1/14)
+        
+        print(f"\n🏆 EN İYİ ANA PATTERN: {best_main[0]}")
+        print(f"   Başarı: {best_main[1]:.2f}/10 (Rastgele: {rastgele_main:.2f}/10)")
+        print(f"   İyileştirme: %{((best_main[1]-rastgele_main)/rastgele_main*100):.1f}")
+        
+        print(f"\n🏆 EN İYİ ARTI PATTERN: {best_plus[0]}")
+        print(f"   Başarı: {best_plus[1]:.2f}/3 (Rastgele: {rastgele_plus:.2f}/3)")
+        print(f"   İyileştirme: %{((best_plus[1]-rastgele_plus)/rastgele_plus*100):.1f}")
+        
+        return self.main_results, self.plus_results
+
+
+# ============================================================
+# ANA SINIF
+# ============================================================
+
+class SansTopuPatternMaster:
+    def __init__(self, excel_path="sanstopu.xlsx", sheet_name="s1"):
+        self.excel_path = excel_path
+        self.sheet_name = sheet_name
+        self.df = None
+        self.main_results = None
+        self.plus_results = None
+        
+    def load_data(self):
+        loader = DataLoader(self.excel_path, self.sheet_name)
+        self.df = loader.load()
+        self.get_main = loader.get_main_numbers
+        self.get_plus = loader.get_plus_number
+        print(f"✅ Veri yüklendi: {len(self.df)} çekiliş")
+        if len(self.df) > 0:
+            print(f"📅 Aralık: {self.df['tarih'].min().strftime('%d.%m.%Y')} - {self.df['tarih'].max().strftime('%d.%m.%Y')}")
+        return self.df
+    
+    def run_tests(self, test_size=100):
+        engine = BacktestEngine(self.df, self.get_main, self.get_plus)
+        self.main_results, self.plus_results = engine.run_all_tests(test_size)
+        return self.main_results, self.plus_results
+    
+    def get_best_main_predictions(self, k=10):
+        """En iyi pattern ile ana tahmin"""
+        if self.main_results is None:
+            self.run_tests()
+        
+        best_name = max(self.main_results.items(), key=lambda x: x[1])[0]
+        
+        pattern_map = {
+            'Son 1 çekiliş': 'p_main_son_1',
+            'Son 3 çekiliş': 'p_main_son_3',
+            'Son 5 çekiliş': 'p_main_son_5',
+            'Son 7 çekiliş': 'p_main_son_7',
+            'Son 10 çekiliş': 'p_main_son_10',
+            'Son 15 çekiliş': 'p_main_son_15',
+            'Son 20 çekiliş': 'p_main_son_20',
+            'Son 30 çekiliş': 'p_main_son_30',
+            'Fibonacci sayıları': 'p_main_fibonacci',
+            'Fibonacci + komşu': 'p_main_fibonacci_neighbor',
+            'Fibonacci aralığı': 'p_main_fibonacci_range',
+            'Sadece tek sayılar': 'p_main_only_odd',
+            'Sadece çift sayılar': 'p_main_only_even',
+            '3 tek + 2 çift': 'p_main_3odd_2even',
+            '4 tek + 1 çift': 'p_main_4odd_1even',
+            'Küçük sayılar (1-17)': 'p_main_small',
+            'Büyük sayılar (18-34)': 'p_main_large',
+            '3 küçük + 2 büyük': 'p_main_3small_2large',
+            'Hot numbers (en çok çıkan)': 'p_main_hot',
+            'Due numbers (en uzun süredir çıkmayan)': 'p_main_due',
+            'Trend artan sayılar': 'p_main_trend_up',
+            'Trend azalan sayılar': 'p_main_trend_down',
+            'Son çekilişin komşuları': 'p_main_neighbor',
+            'Son çekilişin aynısı': 'p_main_last_draw',
+            'Asal sayılar': 'p_main_prime',
+            "Mod 5 (5'in katları)": 'p_main_mod5',
+            "Mod 3 (3'ün katları)": 'p_main_mod3',
+            'Haftanın aynı günü': 'p_main_weekday',
+            'Ayın aynı günü': 'p_main_month_day',
+            'Çift numaralı çekilişler': 'p_main_even_draws',
+            'Tek numaralı çekilişler': 'p_main_odd_draws',
+        }
+        
+        pattern_func = pattern_map.get(best_name, 'p_main_hot')
+        patterns = MainPatterns(self.df, self.get_main)
+        
+        try:
+            predictions = getattr(patterns, pattern_func)()
+        except:
+            predictions = patterns.p_main_hot()
+        
+        return predictions[:k]
+    
+    def get_best_plus_predictions(self, k=3):
+        """En iyi pattern ile artı tahmin"""
+        if self.plus_results is None:
+            self.run_tests()
+        
+        best_name = max(self.plus_results.items(), key=lambda x: x[1])[0]
+        
+        pattern_map = {
+            'Son 1 çekiliş': 'p_plus_son_1',
+            'Son 3 çekiliş': 'p_plus_son_3',
+            'Son 5 çekiliş': 'p_plus_son_5',
+            'Son 7 çekiliş': 'p_plus_son_7',
+            'Son 10 çekiliş': 'p_plus_son_10',
+            'Son 15 çekiliş': 'p_plus_son_15',
+            'Son 20 çekiliş': 'p_plus_son_20',
+            'Hot numbers': 'p_plus_hot',
+            'Due numbers': 'p_plus_due',
+            'Tek sayılar': 'p_plus_odd',
+            'Çift sayılar': 'p_plus_even',
+            'Küçük sayılar (1-7)': 'p_plus_small',
+            'Büyük sayılar (8-14)': 'p_plus_large',
+            'Asal sayılar': 'p_plus_prime',
+            'Fibonacci sayıları': 'p_plus_fibonacci',
+            'Son çekilişin komşuları': 'p_plus_neighbor',
+            'Son çekilişin aynısı': 'p_plus_last_draw',
+            'Haftanın aynı günü': 'p_plus_weekday',
+        }
+        
+        pattern_func = pattern_map.get(best_name, 'p_plus_hot')
+        patterns = PlusPatterns(self.df, self.get_plus)
+        
+        try:
+            predictions = getattr(patterns, pattern_func)()
+        except:
+            predictions = patterns.p_plus_hot()
+        
+        return predictions[:k]
+    
+    def print_report(self):
+        if self.main_results is None:
+            self.run_tests()
+        
+        best_main_10 = self.get_best_main_predictions(10)
+        best_plus_3 = self.get_best_plus_predictions(3)
+        
+        best_main_name = max(self.main_results.items(), key=lambda x: x[1])[0]
+        best_main_score = max(self.main_results.values())
+        best_plus_name = max(self.plus_results.items(), key=lambda x: x[1])[0]
+        best_plus_score = max(self.plus_results.values())
+        
+        rastgele_main = 10 * (5/34)
+        rastgele_plus = 3 * (1/14)
+        
+        print("\n" + "=" * 60)
+        print("🎯 ŞANS TOPU PATTERN MASTER RAPORU")
+        print("=" * 60)
+        print(f"\n📅 Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}")
+        print(f"📊 Toplam Analiz: {len(self.df)} çekiliş")
+        
+        print(f"\n🏆 EN İYİ ANA PATTERN: {best_main_name}")
+        print(f"   Başarı: {best_main_score:.2f}/10 (Rastgele: {rastgele_main:.2f}/10)")
+        print(f"   İyileştirme: %{((best_main_score-rastgele_main)/rastgele_main*100):.1f}")
+        
+        print(f"\n🏆 EN İYİ ARTI PATTERN: {best_plus_name}")
+        print(f"   Başarı: {best_plus_score:.2f}/3 (Rastgele: {rastgele_plus:.2f}/3)")
+        print(f"   İyileştirme: %{((best_plus_score-rastgele_plus)/rastgele_plus*100):.1f}")
+        
+        print("\n" + "-" * 60)
+        print("🎯 EN İYİ PATTERN İLE 10 ANA SAYI")
+        print("-" * 60)
+        
+        for i in range(0, len(best_main_10), 5):
+            group = best_main_10[i:i+5]
+            print(f"  {i+1:2d}-{i+5:2d}. {' '.join(f'{n:3d}' for n in group)}")
+        
+        print("\n" + "-" * 60)
+        print("🎯 EN İYİ PATTERN İLE 3 ARTI SAYI")
+        print("-" * 60)
+        print(f"\n  🌟🌟🌟  {best_plus_3}  🌟🌟🌟")
+        
+        # En iyi 5 ana pattern
+        print("\n" + "-" * 60)
+        print("🏆 ANA KISIM - EN İYİ 5 PATTERN")
+        print("-" * 60)
+        
+        sorted_main = sorted(self.main_results.items(), key=lambda x: x[1], reverse=True)
+        for i, (name, score) in enumerate(sorted_main[:5]):
+            improvement = ((score - rastgele_main) / rastgele_main * 100) if rastgele_main > 0 else 0
+            print(f"  {i+1}. {name:30}: {score:.2f}/10 (%{improvement:+.0f})")
+        
+        # En iyi 5 artı pattern
+        print("\n" + "-" * 60)
+        print("🏆 ARTI KISIM - EN İYİ 5 PATTERN")
+        print("-" * 60)
+        
+        sorted_plus = sorted(self.plus_results.items(), key=lambda x: x[1], reverse=True)
+        for i, (name, score) in enumerate(sorted_plus[:5]):
+            improvement = ((score - rastgele_plus) / rastgele_plus * 100) if rastgele_plus > 0 else 0
+            print(f"  {i+1}. {name:30}: {score:.2f}/3 (%{improvement:+.0f})")
+        
+        print("\n" + "-" * 60)
+        print("⚠️ NOT: Bu tahminler istatistiksel analizdir.")
+        print("   Kesin sonuç garantisi yoktur. Eğlence amaçlıdır.")
+        print("=" * 60)
+        
+        return {'best_main_10': best_main_10, 'best_plus_3': best_plus_3}
+    
+    def save_results(self, best_main_10, best_plus_3):
+        os.makedirs('outputs', exist_ok=True)
+        
+        if self.main_results:
+            best_main = max(self.main_results.items(), key=lambda x: x[1])
+            best_plus = max(self.plus_results.items(), key=lambda x: x[1])
+        else:
+            best_main = ("Bilinmiyor", 0)
+            best_plus = ("Bilinmiyor", 0)
+        
+        with open('outputs/sanstopu_pattern_master_results.json', 'w', encoding='utf-8') as f:
+            json.dump({
+                'best_main_10_numbers': best_main_10,
+                'best_plus_3_numbers': best_plus_3,
+                'best_main_pattern': best_main[0],
+                'best_main_score': best_main[1],
+                'best_plus_pattern': best_plus[0],
+                'best_plus_score': best_plus[1],
+                'all_main_pattern_results': self.main_results,
+                'all_plus_pattern_results': self.plus_results
+            }, f, ensure_ascii=False, indent=2)
+        
+        with open('outputs/sanstopu_pattern_master_report.txt', 'w', encoding='utf-8') as f:
+            f.write("=" * 60 + "\n")
+            f.write("🎯 ŞANS TOPU PATTERN MASTER RAPORU\n")
+            f.write("=" * 60 + "\n\n")
+            f.write(f"Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}\n")
+            f.write(f"Toplam Analiz: {len(self.df)} çekiliş\n\n")
+            f.write("EN İYİ ANA PATTERN:\n")
+            f.write(f"  {best_main[0]}: {best_main[1]:.2f}/10\n\n")
+            f.write("EN İYİ ARTI PATTERN:\n")
+            f.write(f"  {best_plus[0]}: {best_plus[1]:.2f}/3\n\n")
+            f.write("ÖNERİLEN 10 ANA SAYI:\n")
+            f.write(str(best_main_10) + "\n\n")
+            f.write("ÖNERİLEN 3 ARTI SAYI:\n")
+            f.write(str(best_plus_3) + "\n\n")
+        
+        print(f"\n💾 Kaydedildi: outputs/sanstopu_pattern_master_results.json")
+        print(f"💾 Kaydedildi: outputs/sanstopu_pattern_master_report.txt")
+
+
+# ============================================================
+# ANA ÇALIŞTIRMA
+# ============================================================
+
+def main():
+    print("\n" + "=" * 60)
+    print("🚀 ŞANS TOPU PATTERN MASTER BOTU")
+    print("   35+ pattern test edilecek")
+    print("   591 çekiliş, 100 backtest")
+    print("=" * 60)
+    
+    bot = SansTopuPatternMaster()
+    bot.load_data()
+    bot.run_tests(test_size=100)
+    result = bot.print_report()
+    bot.save_results(result['best_main_10'], result['best_plus_3'])
+    
+    print("\n✅ TAMAMLANDI!")
+
+if __name__ == "__main__":
+    main()
