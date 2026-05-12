@@ -10,6 +10,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -25,7 +27,11 @@ jobs:
       run: |
         python bot/sanstopu_ensemble_bot_v2.py
     
-    - name: Upload results
+    - name: List outputs directory
+      run: |
+        ls -la outputs/ || echo "outputs klasörü yok"
+    
+    - name: Upload results as artifact
       uses: actions/upload-artifact@v4
       with:
         name: sanstopu-ensemble-v2-results
@@ -34,8 +40,10 @@ jobs:
     
     - name: Commit and push results
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add outputs/ || true
-        git commit -m "Auto-update: Sanstopu ensemble v2 results" || echo "No changes"
-        git push || echo "No changes"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add outputs/*.json || true
+        git add outputs/*.csv || true
+        git add outputs/*.txt || true
+        git commit -m "Auto-update: Sanstopu ensemble v2 results [skip ci]" || echo "No changes to commit"
+        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git || echo "Push failed"
