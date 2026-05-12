@@ -1,0 +1,41 @@
+name: Sanstopu Ensemble Bot V2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-ensemble-v2:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas numpy openpyxl
+    
+    - name: Run Sanstopu Ensemble Bot V2
+      run: |
+        python bot/sanstopu_ensemble_bot_v2.py
+    
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: sanstopu-ensemble-v2-results
+        path: outputs/
+        retention-days: 30
+    
+    - name: Commit and push results
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add outputs/ || true
+        git commit -m "Auto-update: Sanstopu ensemble v2 results" || echo "No changes"
+        git push || echo "No changes"
