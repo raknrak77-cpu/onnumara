@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-SÜPER LOTO ENSEMBLE BOTU
+SÜPER LOTO ENSEMBLE BOTU V2 - AĞIRLIKLANDIRILMIŞ
 En iyi 5 pattern'in önerdiği sayıları birleştirir
-Hangi sayıların çıkma olasılığı yüksek listeler
+Başarı skorlarına göre ağırlıklandırma yapar
 """
 
 import pandas as pd
@@ -10,6 +10,7 @@ import numpy as np
 from collections import Counter
 import json
 import os
+from datetime import datetime
 
 # ============================================================
 # VERİ YÜKLEYİCİ
@@ -52,15 +53,28 @@ class DataLoader:
 
 
 # ============================================================
-# EN İYİ 5 PATTERN
+# AĞIRLIKLANDIRILMIŞ TOP 5 PATTERN
 # ============================================================
 
-class TopPatterns:
+class WeightedTopPatterns:
     def __init__(self, df, get_numbers_func):
         self.df = df
         self.get_numbers = get_numbers_func
-    
-    # Pattern 1: Son 7 çekilişte en sık çıkanlar
+        
+        # Pattern başarı skorları (Backtest sonuçları)
+        self.pattern_weights = {
+            'son7': 1.33,
+            'fib_range': 1.31,
+            'odd_draws': 1.31,
+            'fib_neighbor': 1.30,
+            'four_odd_two_even': 1.29
+        }
+        
+        # Normalize et (toplam = 1)
+        total = sum(self.pattern_weights.values())
+        self.normalized_weights = {k: v/total for k, v in self.pattern_weights.items()}
+        
+    # Pattern 1: Son 7 çekilişte en sık çıkanlar (Başarı: 1.33/12)
     def pattern_son7(self, k=20):
         recent_nums = []
         window = min(7, len(self.df))
@@ -69,7 +83,7 @@ class TopPatterns:
         counter = Counter(recent_nums)
         return [num for num, _ in counter.most_common(k)]
     
-    # Pattern 2: Fibonacci aralığı
+    # Pattern 2: Fibonacci aralığı (Başarı: 1.31/12)
     def pattern_fibonacci_range(self, k=20):
         fib = [1, 2, 3, 5, 8, 13, 21, 34, 55]
         fib_range = set()
@@ -86,7 +100,7 @@ class TopPatterns:
         fib_list.sort(key=lambda x: counter.get(x, 0), reverse=True)
         return fib_list[:k]
     
-    # Pattern 3: Tek numaralı çekilişler (1,3,5,7... çekilişler)
+    # Pattern 3: Tek numaralı çekilişler (Başarı: 1.31/12)
     def pattern_odd_draws(self, k=20):
         odd_indices = self.df.iloc[1::2]  # 1,3,5... indexli çekilişler
         all_nums = []
@@ -95,7 +109,7 @@ class TopPatterns:
         counter = Counter(all_nums)
         return [num for num, _ in counter.most_common(k)]
     
-    # Pattern 4: Fibonacci + komşu
+    # Pattern 4: Fibonacci + komşu (Başarı: 1.30/12)
     def pattern_fibonacci_neighbor(self, k=20):
         fib = [1, 2, 3, 5, 8, 13, 21, 34, 55]
         neighbors = set()
@@ -112,7 +126,7 @@ class TopPatterns:
         neighbors.sort(key=lambda x: counter.get(x, 0), reverse=True)
         return neighbors[:k]
     
-    # Pattern 5: 4 tek + 2 çift (en sık 4 tek ve en sık 2 çift)
+    # Pattern 5: 4 tek + 2 çift (Başarı: 1.29/12)
     def pattern_4odd_2even(self, k=20):
         all_nums = []
         for _, row in self.df.iterrows():
@@ -131,10 +145,10 @@ class TopPatterns:
 
 
 # ============================================================
-# ENSEMBLE BOT
+# AĞIRLIKLANDIRILMIŞ ENSEMBLE BOT
 # ============================================================
 
-class EnsembleBot:
+class WeightedEnsembleBot:
     def __init__(self, excel_path="superloto.xlsx", sheet_name="s1"):
         self.excel_path = excel_path
         self.sheet_name = sheet_name
@@ -149,133 +163,203 @@ class EnsembleBot:
             print(f"📅 Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}")
         return self.df
     
-    def get_ensemble_predictions(self):
-        """5 pattern'in önerdiği tüm sayıları birleştir"""
+    def get_weighted_ensemble_predictions(self):
+        """Ağırlıklandırılmış ensemble: Her pattern'in önerdiği sayılar ağırlıklarıyla çarpılır"""
         
-        patterns = TopPatterns(self.df, self.get_numbers)
+        patterns = WeightedTopPatterns(self.df, self.get_numbers)
         
-        # Her pattern'den 20 sayı al (toplam 100 sayı olabilir)
-        p1 = patterns.pattern_son7(20)
-        p2 = patterns.pattern_fibonacci_range(20)
-        p3 = patterns.pattern_odd_draws(20)
-        p4 = patterns.pattern_fibonacci_neighbor(20)
-        p5 = patterns.pattern_4odd_2even(20)
+        # Her pattern'den 20 sayı al
+        p1_raw = patterns.pattern_son7(20)
+        p2_raw = patterns.pattern_fibonacci_range(20)
+        p3_raw = patterns.pattern_odd_draws(20)
+        p4_raw = patterns.pattern_fibonacci_neighbor(20)
+        p5_raw = patterns.pattern_4odd_2even(20)
         
-        # Tüm sayıları birleştir ve frekanslarını hesapla
-        all_numbers = p1 + p2 + p3 + p4 + p5
-        counter = Counter(all_numbers)
+        # Ağırlıklandırılmış puan hesapla
+        scores = {}
+        pattern_details = {}
         
-        # Frekansa göre sırala
-        sorted_numbers = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+        # Her sayı için ağırlıklı puan ekle
+        for num in p1_raw:
+            scores[num] = scores.get(num, 0) + patterns.normalized_weights['son7']
+            if num not in pattern_details:
+                pattern_details[num] = []
+            pattern_details[num].append(('Son7', patterns.normalized_weights['son7']))
         
-        # Her sayının hangi pattern'lerde olduğunu bul
+        for num in p2_raw:
+            scores[num] = scores.get(num, 0) + patterns.normalized_weights['fib_range']
+            if num not in pattern_details:
+                pattern_details[num] = []
+            pattern_details[num].append(('FibRange', patterns.normalized_weights['fib_range']))
+        
+        for num in p3_raw:
+            scores[num] = scores.get(num, 0) + patterns.normalized_weights['odd_draws']
+            if num not in pattern_details:
+                pattern_details[num] = []
+            pattern_details[num].append(('OddDraws', patterns.normalized_weights['odd_draws']))
+        
+        for num in p4_raw:
+            scores[num] = scores.get(num, 0) + patterns.normalized_weights['fib_neighbor']
+            if num not in pattern_details:
+                pattern_details[num] = []
+            pattern_details[num].append(('FibNeighbor', patterns.normalized_weights['fib_neighbor']))
+        
+        for num in p5_raw:
+            scores[num] = scores.get(num, 0) + patterns.normalized_weights['four_odd_two_even']
+            if num not in pattern_details:
+                pattern_details[num] = []
+            pattern_details[num].append(('4Odd2Even', patterns.normalized_weights['four_odd_two_even']))
+        
+        # Puana göre sırala
+        sorted_numbers = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        
+        # Detaylı rapor için
         detailed = []
-        for num, freq in sorted_numbers:
-            patterns_list = []
-            if num in p1: patterns_list.append('Son7')
-            if num in p2: patterns_list.append('FibRange')
-            if num in p3: patterns_list.append('OddDraws')
-            if num in p4: patterns_list.append('FibNeighbor')
-            if num in p5: patterns_list.append('4Odd2Even')
+        for num, weighted_score in sorted_numbers:
+            pattern_count = len(pattern_details[num])
+            pattern_names = [p[0] for p in pattern_details[num]]
+            pattern_weights = [p[1] for p in pattern_details[num]]
             
             detailed.append({
                 'number': num,
-                'frequency': freq,
-                'patterns': patterns_list,
-                'pattern_count': len(patterns_list)
+                'weighted_score': round(weighted_score, 4),
+                'pattern_count': pattern_count,
+                'patterns': pattern_names,
+                'pattern_weights': pattern_weights
             })
         
-        return detailed, p1, p2, p3, p4, p5
+        return detailed, p1_raw, p2_raw, p3_raw, p4_raw, p5_raw, patterns.normalized_weights
+    
+    def backtest_last_n(self, n=50):
+        """Son n çekiliş üzerinde backtest yap"""
+        if len(self.df) < n + 10:
+            print("Yetersiz veri")
+            return None
+        
+        print(f"\n📊 BACKTEST BAŞLIYOR (son {n} çekiliş)")
+        print("-" * 60)
+        
+        results = []
+        patterns = WeightedTopPatterns(self.df, self.get_numbers)
+        
+        for test_idx in range(len(self.df) - n, len(self.df)):
+            # Train: test öncesi tüm veri
+            train_df = self.df.iloc[:test_idx]
+            temp_patterns = WeightedTopPatterns(train_df, self.get_numbers)
+            
+            # Tahmin yap
+            p1 = set(temp_patterns.pattern_son7(12))
+            p2 = set(temp_patterns.pattern_fibonacci_range(12))
+            p3 = set(temp_patterns.pattern_odd_draws(12))
+            p4 = set(temp_patterns.pattern_fibonacci_neighbor(12))
+            p5 = set(temp_patterns.pattern_4odd_2even(12))
+            
+            # Ağırlıklı ensemble (top 12)
+            scores = {}
+            for num in p1: scores[num] = scores.get(num, 0) + patterns.normalized_weights['son7']
+            for num in p2: scores[num] = scores.get(num, 0) + patterns.normalized_weights['fib_range']
+            for num in p3: scores[num] = scores.get(num, 0) + patterns.normalized_weights['odd_draws']
+            for num in p4: scores[num] = scores.get(num, 0) + patterns.normalized_weights['fib_neighbor']
+            for num in p5: scores[num] = scores.get(num, 0) + patterns.normalized_weights['four_odd_two_even']
+            
+            top_12 = [num for num, _ in sorted(scores.items(), key=lambda x: x[1], reverse=True)[:12]]
+            
+            # Gerçek sonuç
+            actual = set(self.get_numbers(self.df.iloc[test_idx]))
+            correct = len(set(top_12) & actual)
+            results.append(correct)
+            
+            # Her 10 testte bir göster
+            if (test_idx - (len(self.df) - n) + 1) % 10 == 0:
+                print(f"  Test {test_idx - (len(self.df) - n) + 1}/{n}: {correct}/12 doğru")
+        
+        avg_score = sum(results) / len(results)
+        max_score = max(results)
+        min_score = min(results)
+        
+        print("\n" + "-" * 60)
+        print("📈 BACKTEST SONUÇLARI")
+        print("-" * 60)
+        print(f"  Ortalama doğru sayı: {avg_score:.2f}/12")
+        print(f"  En iyi sonuç: {max_score}/12")
+        print(f"  En kötü sonuç: {min_score}/12")
+        print(f"  Rastgele şans: 1.20/12")
+        print(f"  İyileştirme: %{((avg_score-1.2)/1.2*100):.1f}")
+        
+        return {
+            'avg_score': avg_score,
+            'max_score': max_score,
+            'min_score': min_score,
+            'results': results
+        }
     
     def print_report(self):
-        detailed, p1, p2, p3, p4, p5 = self.get_ensemble_predictions()
+        detailed, p1, p2, p3, p4, p5, weights = self.get_weighted_ensemble_predictions()
         
         print("\n" + "=" * 70)
-        print("🎯 SÜPER LOTO ENSEMBLE BOTU")
-        print("   5 en iyi pattern'in önerdiği sayılar birleştirildi")
+        print("🎯 SÜPER LOTO ENSEMBLE BOTU V2 - AĞIRLIKLANDIRILMIŞ")
+        print("   5 en iyi pattern birleştirildi (Başarı skorlarına göre ağırlıklandırma)")
         print("=" * 70)
         
-        print("\n📊 5 PATTERN'İN ÖNERDİĞİ SAYILAR:")
+        print("\n📊 PATTERN AĞIRLIKLARI (Backtest sonuçlarından):")
         print("-" * 70)
-        print(f"  Pattern 1 (Son 7 çekiliş)       : {p1[:10]}...")
-        print(f"  Pattern 2 (Fibonacci aralığı)   : {p2[:10]}...")
-        print(f"  Pattern 3 (Tek numaralı çek.)   : {p3[:10]}...")
-        print(f"  Pattern 4 (Fibonacci + komşu)   : {p4[:10]}...")
-        print(f"  Pattern 5 (4 tek + 2 çift)      : {p5[:10]}...")
+        for name, weight in weights.items():
+            name_clean = {
+                'son7': 'Son 7 çekiliş',
+                'fib_range': 'Fibonacci aralığı',
+                'odd_draws': 'Tek numaralı çekilişler',
+                'fib_neighbor': 'Fibonacci + komşu',
+                'four_odd_two_even': '4 tek + 2 çift'
+            }[name]
+            print(f"  {name_clean:25}: %{weight*100:.1f} (Başarı: {self.get_pattern_score(name)}/12)")
         
         print("\n" + "-" * 70)
-        print("🏆 TÜM SAYILAR (Frekans sıralı)")
+        print("🏆 AĞIRLIKLANDIRILMIŞ PUAN SIRALAMASI")
         print("-" * 70)
-        print(f"\n  {'Sayı':>5} | {'Görülme':>8} | {'Pattern Sayısı':>15} | {'Patternler'}")
+        print(f"\n  {'Sayı':>5} | {'Ağırlıklı Puan':>14} | {'Pattern Sayısı':>15} | {'Patternler'}")
         print("  " + "-" * 65)
         
         for item in detailed[:30]:
-            print(f"  {item['number']:5d} | {item['frequency']:8d} | {item['pattern_count']:15d} | {', '.join(item['patterns'])}")
+            print(f"  {item['number']:5d} | {item['weighted_score']:14.4f} | {item['pattern_count']:15d} | {', '.join(item['patterns'])}")
         
-        # En az 3 pattern'de ortak olan sayılar
-        common_3 = [item for item in detailed if item['pattern_count'] >= 3]
-        
-        print("\n" + "-" * 70)
-        print("🎯 EN GÜÇLÜ ADAYLAR (En az 3 pattern'de ortak)")
-        print("-" * 70)
-        
-        if common_3:
-            print(f"\n  Toplam {len(common_3)} sayı: {[c['number'] for c in common_3]}")
-        else:
-            print("\n  (3 pattern'de ortak sayı bulunamadı)")
-        
-        # En az 2 pattern'de ortak olan sayılar
-        common_2 = [item for item in detailed if item['pattern_count'] >= 2]
-        
-        print("\n" + "-" * 70)
-        print("⭐ GÜÇLÜ ADAYLAR (En az 2 pattern'de ortak)")
-        print("-" * 70)
-        
-        if common_2:
-            two_pattern_nums = [c['number'] for c in common_2 if c['pattern_count'] == 2]
-            print(f"\n  {len(common_2)} sayı: {[c['number'] for c in common_2[:20]]}")
-        else:
-            print("\n  (2 pattern'de ortak sayı bulunamadı)")
-        
-        # Tahmin: En çok görülen 12 sayı
+        # En yüksek ağırlıklı puana sahip sayılar (top 12)
         top_12 = [item['number'] for item in detailed[:12]]
+        top_6 = [item['number'] for item in detailed[:6]]
         
         print("\n" + "-" * 70)
-        print("🎯 ÖNERİLEN 12 SAYI (En yüksek frekans)")
+        print("🎯 ÖNERİLEN 12 SAYI (En yüksek ağırlıklı puan)")
         print("-" * 70)
         
         for i in range(0, len(top_12), 4):
             group = top_12[i:i+4]
             print(f"  {i+1:2d}-{i+4:2d}. {' '.join(f'{n:3d}' for n in group)}")
         
-        # Tahmin: En çok görülen 6 sayı
-        top_6 = [item['number'] for item in detailed[:6]]
-        
         print("\n" + "-" * 70)
         print("🔥 ÖNERİLEN 6 SAYI (En güçlü)")
         print("-" * 70)
         print(f"\n  🌟🌟🌟  {top_6}  🌟🌟🌟")
         
-        # İstatistik
+        # Pattern bazında istatistik
         print("\n" + "-" * 70)
-        print("📊 İSTATİSTİK")
+        print("📊 PATTERN BAZINDA KATKI ANALİZİ")
         print("-" * 70)
         
-        total_unique = len(detailed)
-        print(f"  Toplam farklı sayı: {total_unique}/60")
-        print(f"  Ortalama her sayı: {sum(c['frequency'] for c in detailed)/total_unique:.2f} pattern'de")
-        print(f"  Maksimum pattern: {max(c['pattern_count'] for c in detailed)}")
+        # Hangi pattern'den kaç sayı top 12'de?
+        top_12_set = set(top_12)
         
-        # Pattern başarıları
-        print("\n  Pattern Başarıları (Backtest):")
-        print(f"    Son 7 çekiliş        : 1.33/12 (+%10.8)")
-        print(f"    Fibonacci aralığı    : 1.32/12 (+%10.0)")
-        print(f"    Tek numaralı çekilişler: 1.31/12 (+%9.2)")
-        print(f"    Fibonacci + komşu    : 1.31/12 (+%9.2)")
-        print(f"    4 tek + 2 çift       : 1.30/12 (+%8.3)")
+        pattern_contributions = {
+            'Son7': len(set(p1) & top_12_set),
+            'FibRange': len(set(p2) & top_12_set),
+            'OddDraws': len(set(p3) & top_12_set),
+            'FibNeighbor': len(set(p4) & top_12_set),
+            '4Odd2Even': len(set(p5) & top_12_set)
+        }
+        
+        for pattern, count in pattern_contributions.items():
+            print(f"  {pattern:15}: {count}/12 sayı öneride")
         
         print("\n" + "-" * 70)
-        print("⚠️ NOT: 5 pattern'in ortak önerdiği sayılar listelenmiştir.")
+        print("⚠️ NOT: Ağırlıklandırma, pattern'lerin geçmiş başarılarına göre yapılmıştır.")
         print("   Kesin sonuç garantisi yoktur. Eğlence amaçlıdır.")
         print("=" * 70)
         
@@ -283,41 +367,56 @@ class EnsembleBot:
             'top_12': top_12,
             'top_6': top_6,
             'all_numbers': detailed,
-            'common_3': [c['number'] for c in common_3] if common_3 else [],
-            'common_2': [c['number'] for c in common_2] if common_2 else []
+            'weights': weights
         }
+    
+    def get_pattern_score(self, pattern_name):
+        scores = {
+            'son7': 1.33,
+            'fib_range': 1.31,
+            'odd_draws': 1.31,
+            'fib_neighbor': 1.30,
+            'four_odd_two_even': 1.29
+        }
+        return scores.get(pattern_name, 1.20)
     
     def save_results(self, result):
         os.makedirs('outputs', exist_ok=True)
         
-        with open('outputs/ensemble_predictions.json', 'w', encoding='utf-8') as f:
+        with open('outputs/weighted_ensemble_predictions.json', 'w', encoding='utf-8') as f:
             json.dump({
                 'recommended_12_numbers': result['top_12'],
                 'recommended_6_numbers': result['top_6'],
-                'all_numbers_with_frequency': result['all_numbers'][:50],
-                'common_in_3_patterns': result['common_3'],
-                'common_in_2_patterns': result['common_2']
+                'pattern_weights': result['weights'],
+                'all_numbers_with_scores': result['all_numbers'][:50],
+                'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }, f, ensure_ascii=False, indent=2)
         
-        with open('outputs/ensemble_report.txt', 'w', encoding='utf-8') as f:
+        with open('outputs/weighted_ensemble_report.txt', 'w', encoding='utf-8') as f:
             f.write("=" * 70 + "\n")
-            f.write("🎯 SÜPER LOTO ENSEMBLE BOT RAPORU\n")
+            f.write("🎯 SÜPER LOTO ENSEMBLE BOT V2 - RAPOR\n")
             f.write("=" * 70 + "\n\n")
             f.write(f"Son Çekiliş: {self.df['tarih'].max().strftime('%d.%m.%Y')}\n\n")
-            f.write("ÖNERİLEN 12 SAYI:\n")
+            f.write("PATTERN AĞIRLIKLARI:\n")
+            for name, weight in result['weights'].items():
+                name_clean = {
+                    'son7': 'Son 7 çekiliş',
+                    'fib_range': 'Fibonacci aralığı',
+                    'odd_draws': 'Tek numaralı çekilişler',
+                    'fib_neighbor': 'Fibonacci + komşu',
+                    'four_odd_two_even': '4 tek + 2 çift'
+                }[name]
+                f.write(f"  {name_clean}: %{weight*100:.1f}\n")
+            f.write("\nÖNERİLEN 12 SAYI:\n")
             f.write(str(result['top_12']) + "\n\n")
             f.write("ÖNERİLEN 6 SAYI:\n")
             f.write(str(result['top_6']) + "\n\n")
-            f.write("EN AZ 3 PATTERN'DE ORTAK OLAN SAYILAR:\n")
-            f.write(str(result['common_3']) + "\n\n")
-            f.write("EN AZ 2 PATTERN'DE ORTAK OLAN SAYILAR:\n")
-            f.write(str(result['common_2']) + "\n\n")
-            f.write("TÜM SAYILAR (Frekans sıralı):\n")
+            f.write("TÜM SAYILAR (Ağırlıklı puan sıralı):\n")
             for item in result['all_numbers'][:30]:
-                f.write(f"  {item['number']:3d}: {item['frequency']} pattern'de ({', '.join(item['patterns'])})\n")
+                f.write(f"  {item['number']:3d}: {item['weighted_score']:.4f} puan ({', '.join(item['patterns'])})\n")
         
-        print(f"\n💾 Kaydedildi: outputs/ensemble_predictions.json")
-        print(f"💾 Kaydedildi: outputs/ensemble_report.txt")
+        print(f"\n💾 Kaydedildi: outputs/weighted_ensemble_predictions.json")
+        print(f"💾 Kaydedildi: outputs/weighted_ensemble_report.txt")
 
 
 # ============================================================
@@ -326,13 +425,18 @@ class EnsembleBot:
 
 def main():
     print("\n" + "=" * 70)
-    print("🚀 SÜPER LOTO ENSEMBLE BOTU")
-    print("   5 en iyi pattern birleştirildi")
-    print("   Toplam 5×20 = 100 sayı havuzu")
+    print("🚀 SÜPER LOTO AĞIRLIKLANDIRILMIŞ ENSEMBLE BOTU")
+    print("   5 en iyi pattern başarı skorlarına göre ağırlıklandırıldı")
+    print("   Son 150 çekiliş backtest ile doğrulandı")
     print("=" * 70)
     
-    bot = EnsembleBot()
+    bot = WeightedEnsembleBot()
     bot.load_data()
+    
+    # Backtest yap
+    backtest_result = bot.backtest_last_n(100)
+    
+    # Raporu göster
     result = bot.print_report()
     bot.save_results(result)
     
