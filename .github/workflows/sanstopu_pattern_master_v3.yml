@@ -32,14 +32,12 @@ jobs:
       run: |
         python bot/sanstopu_pattern_master_v3.py
         ls -la outputs/
-        cat outputs/sanstopu_pattern_master_v3.json | head -30 || echo "JSON dosyası oluşturulamadı"
     
     - name: Commit and push results
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git add outputs/*.json
-        git add outputs/*.csv
-        git add outputs/*.txt
+        git add outputs/*.json 2>/dev/null || true
+        git add outputs/*.txt 2>/dev/null || true
         git commit -m "Auto-update: Sanstopu pattern master v3 results [skip ci]" || echo "No changes to commit"
-        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git || echo "Push failed"
