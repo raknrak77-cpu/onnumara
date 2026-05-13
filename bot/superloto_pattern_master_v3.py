@@ -73,6 +73,7 @@ class PatternMasterV3:
         # Cache'ler
         self.markov_cache = None
         self.pair_cache = None
+        self.trend_cache = None
         
     # ============================================================
     # 1. MARKOV ZİNCİRİ (Sayısal Hafıza) - YENİ!
@@ -233,7 +234,7 @@ class PatternMasterV3:
                 pair_count[pair] += 1
         
         self.pair_cache = pair_count
-        return pair_cache
+        return self.pair_cache
     
     def get_partners(self, num, top_n=5):
         """Bir sayının en çok birlikte çıktığı partnerleri"""
@@ -398,7 +399,7 @@ class SuperPoolGenerator:
         # HÜCRE A: TREND LİDERLERİ (Son 10 çekilişin en formda 7 sayısı)
         # ============================================================
         
-        trend_nums = self.pm.get_trend_numbers(window=10, k=12)
+        trend_nums = self.pm.get_trend_numbers(window=10, k=15)
         
         # Markov boost ile güçlendir
         markov_boost = self.pm.get_markov_boost()
@@ -446,7 +447,7 @@ class SuperPoolGenerator:
         for num in combined_pool:
             partners = self.pm.get_partners(num, top_n=3)
             for partner in partners:
-                if partner not in combined_pool:
+                if partner not in combined_pool and 1 <= partner <= 60:
                     partner_scores[partner] += 1
         
         sorted_partners = sorted(partner_scores.items(), key=lambda x: x[1], reverse=True)
@@ -454,7 +455,7 @@ class SuperPoolGenerator:
         
         # Eksik varsa delta uyumlu sayılarla tamamla
         if len(cell_c) < 7:
-            delta_nums = self.pm.get_delta_compatible_numbers(10)
+            delta_nums = self.pm.get_delta_compatible_numbers(15)
             for num in delta_nums:
                 if num not in cell_c and num not in combined_pool:
                     cell_c.append(num)
@@ -469,15 +470,13 @@ class SuperPoolGenerator:
         # HÜCRE D: KAOS/SÜRPRİZ (Yüksek entropi + Düşük frekans)
         # ============================================================
         
-        high_entropy_nums = self.pm.p_low_entropy(20)  # Düşük entropi aslında düzenli
-        # Yüksek entropi için tam tersi
         all_nums = []
         for _, row in self.df.iterrows():
             all_nums.extend(self.get_numbers(row))
         counter = Counter(all_nums)
         
         # En az çıkan 20 sayı
-        least_frequent = [num for num, _ in sorted(counter.items(), key=lambda x: x[1])[:20]]
+        least_frequent = [num for num, _ in sorted(counter.items(), key=lambda x: x[1])[:25]]
         
         # Momentum yönüne göre kaydır
         momentum = self.pm.get_momentum_direction()
@@ -504,31 +503,15 @@ class SuperPoolGenerator:
         
         super_pool = cell_a + cell_b + cell_c + cell_d
         
-        # Kırılma noktası kontrolü
-        print("\n" + "-" * 70)
-        print("🔬 KIRILMA NOKTASI ANALİZİ")
-        print("-" * 70)
-        
-        # Her sayının kaç hücrede geçtiğini kontrol et (kesişim)
-        all_cells = set(cell_a + cell_b + cell_c + cell_d)
-        
-        # Tekrar eden sayıları bul
-        from collections import Counter as C
-        pool_counter = C(cell_a + cell_b + cell_c + cell_d)
-        duplicates = {num: count for num, count in pool_counter.items() if count > 1}
-        
-        if duplicates:
-            print(f"   ⚠️ Kesişen sayılar: {duplicates}")
-            print(f"   → Bunlar güçlü sinyal, havuzda kalmalı")
-        
         # Benzersiz havuz
-        unique_pool = list(set(super_pool))
-        print(f"   📊 Benzersiz havuz: {len(unique_pool)} sayı")
+        unique_pool = list(dict.fromkeys(super_pool))  # Sırayı koruyarak tekrarları temizle
         
-        # Eksik varsa tamamla (delta uyumlu)
+        print(f"\n📊 Benzersiz havuz: {len(unique_pool)} sayı (tekrarlar temizlendi)")
+        
+        # Eksik varsa tamamla (delta uyumlu veya hot)
         if len(unique_pool) < 28:
-            delta_nums = self.pm.get_delta_compatible_numbers(30)
-            for num in delta_nums:
+            hot_nums = self.pm.p_hot(30)
+            for num in hot_nums:
                 if num not in unique_pool:
                     unique_pool.append(num)
                     if len(unique_pool) >= 28:
@@ -651,13 +634,14 @@ class SuperLotoPatternMasterV3:
             f.write("-" * 70 + "\n\n")
             
             # 4x7 formatında göster
+            sorted_pool = result['super_pool']
             f.write("  ")
-            for i, num in enumerate(result['super_pool'][:14]):
+            for i, num in enumerate(sorted_pool[:14]):
                 f.write(f"{num:3d} ")
                 if i == 6:
                     f.write("\n  ")
             f.write("\n  ")
-            for i, num in enumerate(result['super_pool'][14:]):
+            for i, num in enumerate(sorted_pool[14:]):
                 f.write(f"{num:3d} ")
                 if i == 6:
                     f.write("\n  ")
