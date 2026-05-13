@@ -1,0 +1,63 @@
+======================================================================
+🎯 SÜPER LOTO PATTERN MASTER V2 RAPORU
+======================================================================
+
+Son Çekiliş: 12.05.2026
+Toplam Analiz: 905 çekiliş
+Test Edilen Pattern: 45
+
+EN İYİ PATTERN:
+  Tek numaralı çekilişler: 1.44/12
+
+EN GÜÇLÜ 12 SAYI:
+[58, 42, 11, 7, 57, 56, 35, 9, 37, 19, 6, 26]
+
+ÖNERİLEN 6 SAYI:
+[7, 6, 9, 58, 37, 35]
+
+TÜM PATTERN SONUÇLARI (Sıralı):
+  Tek numaralı çekilişler: 1.44/12
+  📐 Düşük entropi (Düzenli sayılar): 1.44/12
+  Son 7 çekiliş: 1.44/12
+  4 tek + 2 çift: 1.42/12
+  Son 5 çekiliş: 1.39/12
+  ⏰ Vadesi geçmiş sayılar (Overdue): 1.38/12
+  3 küçük + 3 büyük: 1.38/12
+  3 tek + 3 çift: 1.37/12
+  Hot numbers (en çok çıkan): 1.36/12
+  Sadece tek sayılar: 1.36/12
+  Son 30 çekiliş: 1.36/12
+  Trend artan sayılar: 1.35/12
+  Due numbers (en uzun süredir çıkmayan): 1.33/12
+  📏 Sayılar arası fark analizi: 1.33/12
+  Çift numaralı çekilişler: 1.33/12
+  Son 20 çekiliş: 1.33/12
+  Ayın aynı günü: 1.32/12
+  Haftanın aynı günü: 1.32/12
+  Mod 3 (3'ün katları): 1.31/12
+  Son 3 çekiliş: 1.31/12
+  Son 15 çekiliş: 1.30/12
+  Son 10 çekiliş: 1.27/12
+  Trend azalan sayılar: 1.26/12
+  🤝 En güçlü partner ilişkileri: 1.26/12
+  Asal sayılar: 1.25/12
+  🌊 Yüksek entropi (Dağınık sayılar): 1.24/12
+  Büyük sayılar (31-60): 1.21/12
+  🎵 Ritmik Due analizi: 1.20/12
+  Sadece çift sayılar: 1.20/12
+  Küçük sayılar (1-30): 1.19/12
+  Fibonacci aralığı: 1.18/12
+  🔗 En çok çıkan sayı çiftleri (Pair): 1.18/12
+  Fibonacci + komşu: 1.17/12
+  🔺 En çok çıkan sayı üçlüleri (Triplet): 1.17/12
+  Son çekilişin komşuları (±1,±2): 1.15/12
+  Mod 5 (5'in katları): 1.13/12
+  📊 En aktif blok (Blok analizi): 0.97/12
+  🎯 Küme merkezleri (Clustering): 0.97/12
+  Fibonacci sayıları: 0.92/12
+  🎯 En pasif blok (Sürpriz sayılar): 0.86/12
+  Tam kareler: 0.84/12
+  Son 1 çekiliş: 0.58/12
+  Son çekilişin aynısı: 0.58/12
+  2'nin kuvvetleri: 0.57/12
+  Mod 10 (10'un katları): 0.55/12
