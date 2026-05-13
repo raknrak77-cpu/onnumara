@@ -92,14 +92,14 @@ class PatternMasterV3:
         counter = Counter(recent_nums)
         return [num for num, _ in counter.most_common(k)]
     
-    def p_son_1(self): return self.p_son_n(1, 12)
-    def p_son_3(self): return self.p_son_n(3, 12)
-    def p_son_5(self): return self.p_son_n(5, 12)
-    def p_son_7(self): return self.p_son_n(7, 12)
-    def p_son_10(self): return self.p_son_n(10, 12)
-    def p_son_15(self): return self.p_son_n(15, 12)
-    def p_son_20(self): return self.p_son_n(20, 12)
-    def p_son_30(self): return self.p_son_n(30, 12)
+    def p_son_1(self, k=12): return self.p_son_n(1, k)
+    def p_son_3(self, k=12): return self.p_son_n(3, k)
+    def p_son_5(self, k=12): return self.p_son_n(5, k)
+    def p_son_7(self, k=12): return self.p_son_n(7, k)
+    def p_son_10(self, k=12): return self.p_son_n(10, k)
+    def p_son_15(self, k=12): return self.p_son_n(15, k)
+    def p_son_20(self, k=12): return self.p_son_n(20, k)
+    def p_son_30(self, k=12): return self.p_son_n(30, k)
     
     def p_fibonacci(self, k=12):
         fib = [1, 2, 3, 5, 8, 13, 21, 34, 55]
@@ -244,7 +244,8 @@ class PatternMasterV3:
         counter = Counter(all_nums)
         return [num for num, _ in counter.most_common(k)]
     
-    def p_trend_up(self, k=12, window=20):
+    def p_trend_up(self, k=12):
+        window = 20
         scores = {}
         for num in range(1, 61):
             recent_window = self.df.iloc[-window:]
@@ -262,7 +263,8 @@ class PatternMasterV3:
         sorted_nums = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [num for num, _ in sorted_nums[:k]]
     
-    def p_trend_down(self, k=12, window=20):
+    def p_trend_down(self, k=12):
+        window = 20
         scores = {}
         for num in range(1, 61):
             recent_window = self.df.iloc[-window:]
@@ -505,6 +507,18 @@ class PatternMasterV3:
         block_nums_with_freq.sort(key=lambda x: x[1], reverse=True)
         return [num for num, _ in block_nums_with_freq[:k]]
     
+    def p_block_gap_active(self, k=12):
+        empty_rates, hit_rates = self._calculate_block_stats()
+        best_block = max(hit_rates.items(), key=lambda x: x[1])[0]
+        block_numbers = range(best_block * 10 + 1, best_block * 10 + 11)
+        all_nums = []
+        for _, row in self.df.iterrows():
+            all_nums.extend(self.get_numbers(row))
+        counter = Counter(all_nums)
+        block_nums_with_freq = [(num, counter.get(num, 0)) for num in block_numbers]
+        block_nums_with_freq.sort(key=lambda x: x[1], reverse=True)
+        return [num for num, _ in block_nums_with_freq[:k]]
+    
     def p_block_gap_inactive(self, k=12):
         empty_rates, hit_rates = self._calculate_block_stats()
         worst_block = max(empty_rates.items(), key=lambda x: x[1])[0]
@@ -573,11 +587,14 @@ class PatternMasterV3:
             for i in range(len(nums)-1):
                 gaps.append(nums[i+1] - nums[i])
         gap_counter = Counter(gaps)
-        most_common_gap = gap_counter.most_common(1)[0][0]
+        most_common_gap = gap_counter.most_common(1)[0][0] if gap_counter else 5
         last_nums = sorted(self.get_numbers(self.df.iloc[-1]))
         predictions = set()
         for num in last_nums:
             next_num = num + most_common_gap
+            if 1 <= next_num <= 60:
+                predictions.add(next_num)
+            next_num = num - most_common_gap
             if 1 <= next_num <= 60:
                 predictions.add(next_num)
         if len(predictions) < k:
@@ -613,7 +630,8 @@ class PatternMasterV3:
         markov_prob = {}
         for current, next_dict in transitions.items():
             total = sum(next_dict.values())
-            markov_prob[current] = {num: count/total for num, count in next_dict.items()}
+            if total > 0:
+                markov_prob[current] = {num: count/total for num, count in next_dict.items()}
         
         self.markov_cache = markov_prob
         return markov_prob
@@ -684,6 +702,9 @@ class PatternMasterV3:
             for i in range(len(nums)-1):
                 gaps.append(nums[i+1] - nums[i])
         
+        if not gaps:
+            return list(range(1, k+1))
+        
         gap_counter = Counter(gaps)
         common_deltas = [d for d, _ in sorted(gap_counter.items(), key=lambda x: x[1], reverse=True)[:3]]
         
@@ -698,7 +719,16 @@ class PatternMasterV3:
                 if 1 <= candidate <= 60:
                     compatible.add(candidate)
         
-        return list(compatible)[:k]
+        result = list(compatible)
+        if len(result) < k:
+            hot_nums = self.p_hot(k)
+            for num in hot_nums:
+                if num not in result:
+                    result.append(num)
+                    if len(result) >= k:
+                        break
+        
+        return result[:k]
 
 
 # ============================================================
@@ -729,8 +759,8 @@ class BacktestEngineV3:
             temp_patterns = PatternMasterV3(temp_df, self.get_numbers, self.get_sorted)
             
             try:
-                preds = getattr(temp_patterns, pattern_func)()
-            except:
+                preds = getattr(temp_patterns, pattern_func)(12)
+            except Exception as e:
                 preds = []
             
             test_row = self.df.iloc[train_end]
@@ -756,7 +786,6 @@ class BacktestEngineV3:
         print("-" * 70)
         
         pattern_list = [
-            # V2 pattern'ler (48 tane)
             ('p_son_1', 'Son 1 çekiliş'),
             ('p_son_3', 'Son 3 çekiliş'),
             ('p_son_5', 'Son 5 çekiliş'),
@@ -802,7 +831,6 @@ class BacktestEngineV3:
             ('p_low_entropy', '📐 Düşük entropi'),
             ('p_high_entropy', '🌊 Yüksek entropi'),
             ('p_gap_between_numbers', '📏 Sayılar arası fark analizi'),
-            # V3 YENİ pattern'ler (4 tane)
             ('p_markov_boost', '🔄 Markov Zinciri (V3 YENİ)'),
             ('p_zscore_anomaly', '📈 Z-Score Anomali (V3 YENİ)'),
             ('p_poisson_expectation', '📊 Poisson Dağılımı (V3 YENİ)'),
@@ -817,7 +845,6 @@ class BacktestEngineV3:
             score = self.test_pattern(pattern_func, pattern_name, test_size)
             self.results[pattern_name] = score
             
-            is_v3_new = "V3 YENİ" in pattern_name
             if score > 1.35:
                 star = "🔥🔥"
             elif score > 1.30:
@@ -829,7 +856,7 @@ class BacktestEngineV3:
             else:
                 star = " "
             
-            v3_tag = " [V3]" if is_v3_new else ""
+            v3_tag = " [V3]" if "V3 YENİ" in pattern_name else ""
             print(f"  {pattern_name:45}: {score:5.2f}/12 {star}{v3_tag}")
         
         print("\n" + "-" * 70)
@@ -858,19 +885,15 @@ class SuperPoolGeneratorV3:
         self.pm = PatternMasterV3(df, get_numbers_func, get_sorted_func)
         
     def _get_top_pattern_names(self, n=15):
-        """En iyi n pattern'in isimlerini döndür"""
         sorted_results = sorted(self.test_results.items(), key=lambda x: x[1], reverse=True)
         return [name for name, _ in sorted_results[:n]]
     
     def generate_super_pool(self):
-        """4 hücreden oluşan 28 sayılık Süper Havuz - V3"""
-        
         print("\n" + "=" * 70)
         print("🔬 SÜPER HAVUZ ÜRETİLİYOR (V3 - İleri Analiz)")
         print("   V2: 48 pattern | V3 YENİ: Markov | Z-Score | Poisson | Delta")
         print("=" * 70)
         
-        # En iyi pattern'leri al
         top_patterns = self._get_top_pattern_names(15)
         print(f"\n📊 En iyi 15 pattern kullanılıyor:")
         for i, p in enumerate(top_patterns[:10]):
@@ -880,15 +903,10 @@ class SuperPoolGeneratorV3:
         # HÜCRE A: TREND LİDERLERİ (V2 pattern'ler + Markov)
         # ============================================================
         
-        # V2 trend pattern'leri
         trend_candidates = self.pm.p_son_7(20) + self.pm.p_son_5(20) + self.pm.p_hot(20)
         trend_candidates = list(dict.fromkeys(trend_candidates))
         
-        # Markov boost ekle
-        markov_scores = {}
-        for num in trend_candidates:
-            markov_scores[num] = 1.0
-        
+        markov_scores = {num: 1.0 for num in trend_candidates}
         markov_boost = self.pm.p_markov_boost(20)
         for i, num in enumerate(markov_boost):
             if num in markov_scores:
@@ -983,10 +1001,6 @@ class SuperPoolGeneratorV3:
         super_pool = unique_pool[:28]
         sorted_pool = sorted(super_pool)
         
-        # ============================================================
-        # STATİSTİK RAPORU
-        # ============================================================
-        
         print("\n" + "-" * 70)
         print("🎯 SÜPER HAVUZ (28 SAYI) - V3 FİNAL")
         print("-" * 70)
@@ -1068,7 +1082,6 @@ class SuperLotoPatternMasterV3:
         return self.test_results
     
     def generate_super_pool(self):
-        """Süper Havuz üret"""
         if self.test_results is None:
             self.run_tests()
         
