@@ -1,0 +1,45 @@
+name: Sanstopu Pattern Master V3
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-pattern-master-v3:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas numpy openpyxl
+    
+    - name: Create outputs directory
+      run: |
+        mkdir -p outputs
+        chmod 777 outputs
+    
+    - name: Run Sanstopu Pattern Master V3
+      run: |
+        python bot/sanstopu_pattern_master_v3.py
+        ls -la outputs/
+        cat outputs/sanstopu_pattern_master_v3.json | head -30 || echo "JSON dosyası oluşturulamadı"
+    
+    - name: Commit and push results
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add outputs/*.json
+        git add outputs/*.csv
+        git add outputs/*.txt
+        git commit -m "Auto-update: Sanstopu pattern master v3 results [skip ci]" || echo "No changes to commit"
+        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
